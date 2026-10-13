@@ -12,6 +12,40 @@ Earlier releases remain available in the 1.0 release history, the 1.0 preview hi
 
 ## Unreleased
 
+## 1.0.36
+
+13th October, 2026
+
+### Configuration Encryption
+
+#### Fixed
+
+- We can change the protection of sensitive configuration with Apply and keep our saved settings readable after a restart. (#1238, #1245)
+    - The selected protection mode and passphrase are saved together. If Apply fails, our edits remain available to retry.
+- We can enter a missing or unusable custom configuration passphrase at start-up to unlock our protected settings. (#1239, #1245)
+    - Cancelling the recovery dialogue preserves the encrypted configuration and stops that start-up attempt. Headless command-line start-up cannot complete the dialogue when recovery input is required.
+
+### Localisation
+
+#### Fixed
+
+- We can read more settings, maintenance controls, and Fast Setup instructions in Spanish. (#1213, #1214)
+    - Remote database lock warnings now use the existing translations consistently.
+    - Fast Setup follows the selected display language while preserving saved choices across restarts and language changes.
+- We can read more settings, setup instructions, and messages in Simplified Chinese. (#1242)
+
+### Maintenance
+
+- Development tooling now uses compatible dependency versions with available security fixes. (#1245)
+    - Repository-owned build and import alias helpers remove the vulnerable `braces` dependency.
+
+### Acknowledgements
+
+Thank you for your contributions!
+
+- @zeedif (#1213, #1214)
+- @lingting0 (#1242)
+
 ## 1.0.35
 
 5th October, 2026
@@ -140,20 +174,6 @@ The 1.0.31 pre-release was not promoted after validation found that a receiving 
 #### Fixed
 
 - The receiving device now accepts encrypted file information when both end-to-end encryption and Path Obfuscation are enabled. The 1.0.31 pre-release could reject this information, leaving files from another device absent from the Vault.
-- Files with colons in their names now retain their full paths in synchronisation data instead of appearing as incorrectly named copies at the Vault root. (#1206)
-    - Obsidian may refuse to create a missing file with such a name. LiveSync also treats these names as invalid on Windows and Android, so the file may not appear in those devices' Vaults. Existing misplaced copies are left for you to review; this change does not remove them automatically.
-- Received changes within the configured modification-time limit are applied to the Vault again while remediation mode is active. Changes newer than the limit remain blocked; changes arriving while a fetch makes the local database unavailable are kept for a later attempt.
-- A scheduled fetch no longer offers Simple Fetch while remediation mode is active. This prevents the fetch from bypassing the modification-time limit; the detailed flow explains the restriction and offers to clear it first (#1202). Thank you to @kimjansheden for both fixes and the regression tests in PR #1208!
-- On start-up, an unchanged file with a missing local revision record can be recognised before newer content arrives, avoiding an unnecessary conflict. Files with actual local edits still require conflict review. (#1207)
-
-## 1.0.31
-
-26th September, 2026
-
-### Synchronisation and storage
-
-#### Fixed
-
 - Files with colons in their names now retain their full paths in synchronisation data instead of appearing as incorrectly named copies at the Vault root. (#1206)
     - Obsidian may refuse to create a missing file with such a name. LiveSync also treats these names as invalid on Windows and Android, so the file may not appear in those devices' Vaults. Existing misplaced copies are left for you to review; this change does not remove them automatically.
 - Received changes within the configured modification-time limit are applied to the Vault again while remediation mode is active. Changes newer than the limit remain blocked; changes arriving while a fetch makes the local database unavailable are kept for a later attempt.
