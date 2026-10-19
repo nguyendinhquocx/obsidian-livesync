@@ -830,6 +830,14 @@ Select a file to copy its local database information. The command **Copy databas
 
 The report includes the Vault-relative path, document and chunk identifiers, local database revisions, conflicts, and local chunk availability. It does not query the remote or include file contents. Paths and identifiers can still be private metadata, so review the report before sharing it.
 
+#### Inspect database integrity
+
+Select **Inspect** to choose original names or temporary pseudonyms and inspect normal-file Metadata and current conflicts locally and in CouchDB. The command **Inspect database integrity** opens the same dialogue. The inspection is read-only; its findings do not authorise deletion or perform repairs. See [Collect a report](troubleshooting.md#collect-a-report) for coverage, report formats, privacy, and cancellation.
+
+#### Analyse database usage
+
+Select **Analyse** to choose a name policy and report local revision and Chunk usage. The command **Analyse Database Usage (advanced)** opens the same dialogue when [advanced features](#enable-advanced-features) are enabled. Complete runs offer TSV and JSON; incomplete runs retain their status and reasons in JSON. Existing on-demand Chunk fetching stays unchanged. See [Collect a report](troubleshooting.md#collect-a-report) for accounting limits and export instructions.
+
 #### Write logs into the file
 
 Setting key: writeLogToTheFile
@@ -1062,7 +1070,7 @@ Version `1` requires a coordinated migration: set it on the source client before
 
 The selected value stays pending through ordinary settings saves and reloads. It becomes active only when the Rebuild or Fetch operation is successfully reserved; cancellation leaves it pending.
 
-Distinct files or Metadata documents which derive the same identity stop reconstruction before either database is reset. This check uses the host's supported file listing; Obsidian checks the paths exposed by its Vault APIs and cannot detect physical aliases hidden by its index. Resolve the duplicate names or synchronisation scope first; Self-hosted LiveSync does not merge them automatically. Case-insensitive handling also applies the existing letter-case rule.
+Distinct files or retained Metadata documents which derive the same identity stop reconstruction before either database is reset. When replacing the local database, Rebuild and Fetch exclude logical deletions without unresolved conflicts; a deleted winner with unresolved conflicts still participates in the check. This check uses the host's supported file listing; Obsidian checks the paths exposed by its Vault APIs and cannot detect physical aliases hidden by its index. Resolve the duplicate names or synchronisation scope first; Self-hosted LiveSync does not merge them automatically. Case-insensitive handling also applies the existing letter-case rule.
 
 ### 4. Compatibility (Internal API Usage)
 
