@@ -31,7 +31,6 @@ on:
       - '.github/workflows/release.yml'
       - '.github/workflows/unit-ci.yml'
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - 'src/**'
       - 'test/**'
@@ -61,7 +60,6 @@ permissions:
 
 jobs:
   setup-tools:
-    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     name: Self-hosted setup tools
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -110,7 +108,6 @@ jobs:
         run: npm run test:docker-couchdb:stop || true
 
   unit-test:
-    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     name: Unit Tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -150,7 +147,6 @@ jobs:
           path: coverage/**
 
   integration-test:
-    if: ${{ github.event_name != 'pull_request' || !github.event.pull_request.draft }}
     name: Integration Tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
