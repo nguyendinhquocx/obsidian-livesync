@@ -12,22 +12,62 @@ Earlier releases remain available in the 1.0 release history, the 1.0 preview hi
 
 ## Unreleased
 
-### Fixes
+## 1.0.43
 
-- A new Join or scheduled Fetch asks for data-handling choices again, even after a previous Fetch changed the local database suffix.
-    - Fast Setup retains interrupted choices in an editable Markdown code block in the fetch flag. On restart, we confirm the current remote and saved choices, choose again, or cancel; a remaining flag never reapplies choices silently.
-    - If the saved selection cannot be read, we can choose new options for that attempt without repairing or rewriting the flag. Completing or cancelling the operation removes the whole flag.
-    - After updating during an interrupted Fetch, confirm the choices once more. Older separately stored choices are ignored; downloaded data and the existing checkpoint are not removed by this change.
+30th October, 2026
 
 ### Synchronisation
 
-- We can see CouchDB change-feed comparison progress separately for push and pull.
-    - The `⏩↑` and `⏩↓` counts show entries compared in each direction; the upload and download totals remain separate.
-    - Existing CSS snippets which target `livesync-stat-ff` to hide comparison progress need to target both `livesync-stat-ff-push` and `livesync-stat-ff-pull`. See the [status display guide](docs/tips/status-display.md).
+#### New Feature
+
+- We can avoid accidentally editing out-of-date notes while a large CouchDB catch-up is in progress. (#1241, #1275)
+    - Turn on **Enable SyncGuard** under **General Settings** → **Appearance** to cover the workspace until incoming changes have been received and applied to the Vault.
+    - Disabled by default. During CouchDB LiveSync mode start-up or resume, protection begins after a configurable number of distinct incoming notes is detected (default: 20).
+    - **Continue without waiting** releases the workspace, including after a failed or interrupted transfer. Synchronisation can continue, and some notes may still be out of date.
+    - The settings apply only to this device.
+    - Small catch-up transfers and ordinary live changes remain uninterrupted. Some changes can arrive before the guard activates; it does not prevent other plug-ins or external tools from editing files.
+
+#### Improved
+
+- We can tell that CouchDB synchronisation is progressing while it compares existing revisions, even before any files are uploaded. (#1293, #1294)
+    - Separate `⏩↑` and `⏩↓` counts show the change-feed entries compared for push and pull. These are comparison counts; the upload and download totals remain separate.
+    - Existing CSS snippets which target `livesync-stat-ff` to hide comparison progress need to target both `livesync-stat-ff-push` and `livesync-stat-ff-pull`. The status display guide includes updated examples.
+
+### Setup and recovery
+
+#### Fixed
+
+- We can choose how a new Join or scheduled Fetch handles our existing files, without silently reusing choices from an earlier Fetch. (#1244, #1296)
+    - Each new operation asks again, including after a previous Fetch changed the local database suffix. Fast Setup retains interrupted choices in an editable code block in the fetch flag.
+    - On restart, we confirm the current remote and saved choices, choose again, or cancel; a remaining flag never reapplies choices silently.
+    - If the saved selection cannot be read, we can choose new options for that attempt without repairing or rewriting the flag. Completing or cancelling the operation removes the whole flag.
+    - After updating during an interrupted Fetch, confirm the choices once more. Older separately stored choices are ignored; downloaded data and the existing checkpoint are not removed by this change.
+
+### Dialogues
+
+#### Fixed
+
+- Confirmation and setup actions are easier to follow, and keyboard focus remains visible. (#1297)
+    - Buttons align with the content above them, with room for confirmation buttons' focus outlines.
+- Mobile dialogues retain Obsidian's standard spacing and leave more usable space above the software keyboard. (#1297)
 
 ### Translations
 
-- Simplified Chinese translations have been expanded across settings, setup, recovery, and configuration messages. (#1258) Thank you to @kannazuki-c for the contribution!
+- More settings, setup, recovery, and configuration messages are available in Simplified Chinese. (#1258)
+    - Expanded the translation catalogue to include previously untranslated messages and shared-library labels.
+
+### Miscellaneous
+
+- Docker setup now handles shell-sensitive characters in health-check credentials correctly, avoiding false authentication failures which could prevent CouchDB initialisation. (#1295)
+
+### Acknowledgements
+
+Thank you for your contributions!
+
+- @Akilaydin, for adding the optional SyncGuard workspace protection (#1275).
+- @ARCJ137442, for adding separate push and pull comparison progress displays (#1294).
+- @Jovlang, for correcting Docker health-check credential quoting and authenticated readiness checks (#1295).
+- @kannazuki-c, for expanding the Simplified Chinese translations (#1258).
 
 ## 1.0.42
 
@@ -192,62 +232,3 @@ I have been finding troubleshooting difficult, so I decided to go back to basics
 ### Maintenance
 
 - The Review Harness can compare SHA-256 and xxHash64 file-content hashing on the current device, with fixed inputs from 4 KiB to 50 MiB and separate initialisation and warm-up measurements.
-
-## 1.0.37
-
-16th October, 2026
-
-### Security
-
-- Fixed an issue where synchronised changes could reach files outside the intended synchronisation scope under certain conditions. Updating is recommended.
-
-### CLI
-
-#### Fixed
-
-- We can edit files through the CLI without resetting their creation time where the filesystem supplies it. (#1243)
-    - Filesystems without birth-time support retain the existing change-time fallback. File replacement and restoration of a synchronised creation time remain subject to filesystem limitations.
-- `p2p-host` restores configured P2P automatic synchronisation, following, and change announcements after initialisation. (#1247)
-    - Headless peer acceptance follows the configured policy. Single-operation commands retain their automatic synchronisation suspension.
-- We can select CLI-only Docker patches by their full release tag, such as `1.0.36-patch1-cli`, while keeping the Obsidian plug-in version.
-    - Patch and RC images receive version and SHA-qualified tags. The `latest` and major-minor tags remain reserved for ordinary stable releases.
-
-### Acknowledgements
-
-Thank you for your contributions!
-
-- @kimjansheden, for reporting the issue and contributing the fix and regression tests.
-
-## 1.0.36
-
-13th October, 2026
-
-### Configuration Encryption
-
-#### Fixed
-
-- We can change the protection of sensitive configuration with Apply and keep our saved settings readable after a restart. (#1238, #1245)
-    - The selected protection mode and passphrase are saved together. If Apply fails, our edits remain available to retry.
-- We can enter a missing or unusable custom configuration passphrase at start-up to unlock our protected settings. (#1239, #1245)
-    - Cancelling the recovery dialogue preserves the encrypted configuration and stops that start-up attempt. Headless command-line start-up cannot complete the dialogue when recovery input is required.
-
-### Localisation
-
-#### Fixed
-
-- We can read more settings, maintenance controls, and Fast Setup instructions in Spanish. (#1213, #1214)
-    - Remote database lock warnings now use the existing translations consistently.
-    - Fast Setup follows the selected display language while preserving saved choices across restarts and language changes.
-- We can read more settings, setup instructions, and messages in Simplified Chinese. (#1242)
-
-### Maintenance
-
-- Development tooling now uses compatible dependency versions with available security fixes. (#1245)
-    - Repository-owned build and import alias helpers remove the vulnerable `braces` dependency.
-
-### Acknowledgements
-
-Thank you for your contributions!
-
-- @zeedif (#1213, #1214)
-- @lingting0 (#1242)
