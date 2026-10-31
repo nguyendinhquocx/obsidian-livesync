@@ -1,4 +1,4 @@
-name: cli-node-tests
+name: cli-deno-tests
 
 on:
   push:
@@ -6,14 +6,14 @@ on:
       - main
       - beta
     paths:
-      - '.github/workflows/cli-node-tests.yml'
+      - '.github/workflows/cli-deno-tests.yml'
       - 'src/apps/cli/**'
       - 'test/bench-network/**'
       - 'package.json'
       - 'package-lock.json'
   pull_request:
     paths:
-      - '.github/workflows/cli-node-tests.yml'
+      - '.github/workflows/cli-deno-tests.yml'
       - 'src/apps/cli/**'
       - 'test/bench-network/**'
       - 'package.json'
@@ -21,7 +21,7 @@ on:
   workflow_dispatch:
     inputs:
       test_task:
-        description: 'Node.js test task to run'
+        description: 'Deno test task to run'
         type: choice
         options:
           - test:ci
@@ -59,7 +59,7 @@ jobs:
               TASK_MATRIX='["test:setup-put-cat","test:mirror","test:daemon","test:daemon-startup","test:push-pull","test:decoupled-vault","test:sync-two-local","test:sync-locked-remote","test:remote-commands","test:e2e-matrix:couchdb-enc0","test:e2e-matrix:couchdb-enc1","test:e2e-matrix:minio-enc0","test:e2e-matrix:minio-enc1"]'
               ;;
             test:local)
-              TASK_MATRIX='["test:local"]'
+              TASK_MATRIX='["test:setup-put-cat","test:mirror","test:daemon"]'
               ;;
             test:e2e-matrix)
               TASK_MATRIX='["test:e2e-matrix:couchdb-enc0","test:e2e-matrix:couchdb-enc1","test:e2e-matrix:minio-enc0","test:e2e-matrix:minio-enc1"]'
@@ -77,7 +77,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:
-      NODE_OPTIONS: --max-old-space-size=3072
+      DENO_DIR: ~/.cache/deno
     strategy:
       fail-fast: false
       matrix:
@@ -89,9 +89,22 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
-          node-version: '26.x'
+          node-version: '24.x'
           cache: 'npm'
           cache-dependency-path: package-lock.json
+
+      - name: Setup Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Cache Deno dependencies
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/deno
+          key: ${{ runner.os }}-deno-${{ hashFiles('src/apps/cli/testdeno/deno.lock', 'src/apps/cli/testdeno/deno.json') }}
+          restore-keys: |
+            ${{ runner.os }}-deno-
 
       - name: Install dependencies
         run: npm ci
@@ -114,8 +127,8 @@ jobs:
           bucketName=livesync-test-bucket-ci
           EOF
 
-      - name: Run Node.js tests
-        working-directory: test/e2e-cli
+      - name: Run Deno tests
+        working-directory: src/apps/cli/testdeno
         env:
           LIVESYNC_DOCKER_MODE: native
           LIVESYNC_CLI_RETRY: 3
@@ -124,8 +137,8 @@ jobs:
           LIVESYNC_USE_COTURN: ${{ inputs.use_coturn == true && '1' || '0' }}
         run: |
           TASK="${{ matrix.task }}"
-          echo "[INFO] Running Node.js task: $TASK"
-          node run-task.ts "$TASK"
+          echo "[INFO] Running Deno task: $TASK"
+          deno task "$TASK"
 
       - name: Stop leftover containers
         if: always()
