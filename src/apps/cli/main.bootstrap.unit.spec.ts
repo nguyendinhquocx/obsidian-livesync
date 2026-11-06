@@ -5,6 +5,7 @@ import { join } from "node:path";
 import * as chokidar from "chokidar";
 import { path } from "@vrtmrz/livesync-commonlib/node";
 import * as offlineScanner from "@vrtmrz/livesync-commonlib/compat/serviceFeatures/offlineScanner";
+import { ReplicatorService } from "@vrtmrz/livesync-commonlib/compat/services/base/ReplicatorService";
 import { ControlService } from "@vrtmrz/livesync-commonlib/compat/services/base/ControlService";
 import {
     AutoAccepting,
@@ -13,6 +14,7 @@ import {
     type FilePathWithPrefix,
     type ObsidianLiveSyncSettings,
 } from "@vrtmrz/livesync-commonlib/compat/common/types";
+import { ReplicateResultProcessor } from "@/serviceFeatures/replication/ReplicateResultProcessor";
 import { ServiceFileHandler } from "@/serviceModules/FileHandler";
 import { ServiceFileAccessCLI } from "./serviceModules/ServiceFileAccessImpl";
 import { runCommand } from "./commands/runCommand";
@@ -101,6 +103,77 @@ describe("CLI database preparation", () => {
         // Daemon probes return false so the real core unloads without keeping a daemon alive.
         await expect(main(standardIo, runner)).rejects.toThrow(`__EXIT__:${exitCode}`);
     }
+
+    it.each(["fetch", "rebuild"] as const)("does not replay the old reflection snapshot before %s", async (command) => {
+        const restore = vi.spyOn(ReplicateResultProcessor.prototype, "restoreFromSnapshot");
+        const runner = vi.fn<CliCommandRunner>(async () => false);
+
+        await start(command, runner, 1, true);
+
+        expect(runner).toHaveBeenCalledOnce();
+        expect(restore).not.toHaveBeenCalled();
+    });
+
+    it.each(["fetch", "rebuild"] as const)("invalidates old reflection work after the %s database reset", async (command) => {
+        const snapshotKey = "replicationResultProcessorSnapshot";
+        const oldSnapshot = { queued: [{ _id: "old", _rev: "1-old" }], processing: [] };
+        let retainedBeforeReset: unknown;
+        let retainedAfterReset: unknown;
+        let reset: boolean | undefined;
+        const runner = vi.fn<CliCommandRunner>(async (_options, { core }) => {
+            await core.services.keyValueDB.kvDB.set(snapshotKey, oldSnapshot);
+            retainedBeforeReset = await core.services.keyValueDB.kvDB.get(snapshotKey);
+            reset = await core.services.database.resetDatabase();
+            retainedAfterReset = await core.services.keyValueDB.kvDB.get(snapshotKey);
+            return false;
+        });
+
+        await start(command, runner, 1, true);
+
+        expect(runner).toHaveBeenCalledOnce();
+        expect(reset).toBe(true);
+        expect(retainedBeforeReset).toEqual(oldSnapshot);
+        expect(retainedAfterReset).toEqual({ queued: [], processing: [] });
+        expect(await readFile(join(vaultPath, "notes/local.md"), "utf8")).toBe("local content");
+    });
+
+    it.each([
+        { handleFilenameCaseSensitive: true, pathNormalizationVersion: 0 as const },
+        { handleFilenameCaseSensitive: true, pathNormalizationVersion: 1 as const },
+        { handleFilenameCaseSensitive: false, pathNormalizationVersion: 0 as const },
+        { handleFilenameCaseSensitive: false, pathNormalizationVersion: 1 as const },
+    ])(
+        "writes Vault files with case sensitivity $handleFilenameCaseSensitive and path identity $pathNormalizationVersion",
+        async (settings) => {
+            await writeFile(
+                settingsPath,
+                JSON.stringify({ ...createDefaultCliSettings(), ...settings, isConfigured: true })
+            );
+            const writes: boolean[] = [];
+            let failure: unknown;
+            const runner = vi.fn<CliCommandRunner>(async (_options, { core }) => {
+                try {
+                    writes.push(
+                        await core.serviceModules.storageAccess.writeFileAuto("notes/Remote.md", "remote content")
+                    );
+                    writes.push(
+                        await core.serviceModules.storageAccess.writeFileAuto("notes/Remote.md", "updated content")
+                    );
+                } catch (error) {
+                    failure = error;
+                }
+                return false;
+            });
+
+            await start("ls", runner);
+
+            expect(runner).toHaveBeenCalledOnce();
+            expect(failure).toBeUndefined();
+            expect(writes).toEqual([true, true]);
+            expect(await readFile(join(vaultPath, "notes/Remote.md"), "utf8")).toBe("updated content");
+            expect(await readFile(join(vaultPath, "notes/local.md"), "utf8")).toBe("local content");
+        }
+    );
 
     it.each([
         { separator: "/", platform: "POSIX" },
@@ -331,6 +404,45 @@ describe("CLI database preparation", () => {
         expect(runner).toHaveBeenCalledOnce();
         expect(enumerate).toHaveBeenCalledOnce();
         expect(watch).not.toHaveBeenCalled();
+    });
+
+    it("retains the adopted initial Fetch identity without --write-settings", async () => {
+        await writeFile(
+            settingsPath,
+            JSON.stringify({
+                ...createDefaultCliSettings(),
+                isConfigured: false,
+                couchDB_URI: "https://example.test",
+                couchDB_DBNAME: "vault",
+                couchDB_USER: "user",
+                couchDB_PASSWORD: "pass",
+            })
+        );
+        const dispose = vi.fn(async () => undefined);
+        const inspect = vi.spyOn(ReplicatorService.prototype, "createRemoteResource").mockResolvedValue({
+            check: vi.fn(),
+            getStatus: vi.fn(),
+            inspectPathIdentity: vi.fn(async () => ({ status: "configured", pathNormalizationVersion: 0 }) as const),
+            dispose,
+        });
+        await start(
+            "fetch",
+            async (_options, { core }) => {
+                expect(core.services.setting.currentSettings().pathNormalizationVersion).toBe(0);
+                return true;
+            },
+            0,
+            true
+        );
+        const persisted = JSON.parse(await readFile(settingsPath, "utf-8"));
+        expect(persisted.pathNormalizationVersion).toBe(0);
+        expect(dispose).toHaveBeenCalledOnce();
+        expect(inspect).toHaveBeenCalledOnce();
+        await start("ls", async (_options, { core }) => {
+            expect(core.services.setting.currentSettings().pathNormalizationVersion).toBe(0);
+            return false;
+        });
+        expect(inspect).toHaveBeenCalledOnce();
     });
 
     it.each(["rebuild", "fetch"] as const)("does not scan or mirror legacy Vault files before %s", async (command) => {
