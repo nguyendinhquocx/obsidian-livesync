@@ -122,8 +122,28 @@
     max-width: max-content;
 }
 
+.sls-troubleshoot-preview .sls-troubleshoot-sticky {
+    position: sticky;
+    top: -1em;
+    background-color: var(--modal-background);
+}
+
+.sls-troubleshoot-heading-target {
+    scroll-margin: 3em;
+}
+
+.sls-troubleshoot-preview.sls-troubleshoot-scroll-target {
+    scroll-margin: 1em;
+}
+
 .sls-troubleshoot-preview img {
     max-width: 100%;
+}
+
+.modal .modal-content.sls-config-sync-modal-content {
+    overflow: auto;
+    display: flex;
+    flex-direction: column;
 }
 
 .sls-setting-tab {
@@ -385,6 +405,8 @@ body.is-mobile .sls-onboarding-invitation-action {
     white-space: normal;
 }
 
+.sls-review-harness__database-guide,
+.sls-review-harness__observations,
 .sls-review-harness__result,
 .sls-review-harness__warning,
 .sls-review-harness__privacy,
@@ -575,6 +597,35 @@ body.is-mobile .sls-setting .sls-setting-additional-action {
     display: flex;
     justify-content: flex-end;
     align-items: center;
+}
+
+.sls-dialogue-note-wrapper.sls-hidden {
+    display: none;
+}
+
+.livesync-message-box-container .modal-content .sls-message-box-markdown {
+    user-select: text;
+    -webkit-user-select: text;
+}
+
+.livesync-message-box-container .setting-item-info.sls-hidden {
+    display: none;
+}
+
+.livesync-message-box-container .setting-item-control.sls-message-box-button-control {
+    flex-wrap: wrap;
+}
+
+.livesync-message-box-container .setting-item-control.sls-message-box-button-control-wide {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex-grow: 1;
+}
+
+.livesync-message-box-container .setting-item-control .sls-message-box-wide-button {
+    flex-grow: 1;
+    width: 100%;
 }
 
 .sls-dialogue-note-countdown {
@@ -879,12 +930,23 @@ body.is-mobile .livesync-compatibility-review-notice {
     font-variant-numeric: tabular-nums;
 }
 
+.livesync-stat-sync-mode {
+    display: inline-block;
+    padding-inline: 0.3em;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: var(--radius-s);
+}
+
 .livesync-stat-item.livesync-stat-inactive {
     display: none;
 }
 
 .syncstatusbar .livesync-stat-item {
     white-space: pre;
+}
+
+.syncstatusbar .livesync-stat-sync-mode {
+    margin-inline-end: 0.5em;
 }
 
 .livesync-status-statusline

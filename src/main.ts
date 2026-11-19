@@ -1,3 +1,4 @@
+import { useReflectionRecoveryReview } from "./serviceFeatures/replication/reflectionRecoveryReview";
 import { useP2PSettingsPreparation } from "@/serviceFeatures/useP2PSettingsPreparation";
 import { LOG_LEVEL_URGENT } from "octagonal-wheels/common/logger";
 import { getLanguage, Notice, Plugin, type App, type PluginManifest } from "./deps";
@@ -17,7 +18,7 @@ import { ModuleObsidianGlobalHistory } from "./modules/features/ModuleGlobalHist
 import { LocalDatabaseMaintenance } from "./features/LocalDatabaseMainte/CmdLocalDatabaseMainte.ts";
 import type { InjectableServiceHub } from "@vrtmrz/livesync-commonlib/compat/services/implements/injectable/InjectableServiceHub";
 import { ObsidianServiceHub } from "./modules/services/ObsidianServiceHub.ts";
-import { ServiceRebuilder } from "@vrtmrz/livesync-commonlib/compat/serviceModules/Rebuilder";
+import { ObsidianRebuilder } from "@/serviceModules/ObsidianRebuilder.ts";
 import { ServiceDatabaseFileAccess } from "@/serviceModules/DatabaseFileAccess.ts";
 import { ServiceFileAccessObsidian } from "@/serviceModules/ServiceFileAccessImpl.ts";
 import { StorageAccessManager } from "@vrtmrz/livesync-commonlib/compat/managers/StorageProcessingManager";
@@ -57,6 +58,7 @@ import { SyncGuardOverlay } from "./serviceFeatures/syncGuard/SyncGuardOverlay";
 import { useStartupLifecycleFeature } from "./serviceFeatures/startupLifecycle";
 import { useJoinedDevicesFeature } from "./serviceFeatures/useJoinedDevices";
 import { useDatabaseDiagnosticsFeature } from "./serviceFeatures/useDatabaseDiagnostics";
+import { useDatabaseConnectionRecovery } from "./serviceFeatures/databaseConnectionRecovery";
 export type LiveSyncCore = LiveSyncBaseCore<ObsidianServiceContext, LiveSyncCommands>;
 export default class ObsidianLiveSyncPlugin extends Plugin {
     core: LiveSyncCore;
@@ -77,6 +79,10 @@ export default class ObsidianLiveSyncPlugin extends Plugin {
             APIService: services.API,
             pathService: services.path,
         });
+        services.appLifecycle.onUnload.addHandler(() => {
+            vaultAccess.dispose();
+            return Promise.resolve(true);
+        });
         const storageEventManager = new StorageEventManagerObsidian(this, core, {
             fileProcessing: services.fileProcessing,
             setting: services.setting,
@@ -84,6 +90,7 @@ export default class ObsidianLiveSyncPlugin extends Plugin {
             storageAccessManager: storageAccessManager,
             APIService: services.API,
         });
+        useDatabaseConnectionRecovery(core, storageEventManager, () => services.context.isHostActive());
         const storageAccess = new ServiceFileAccessObsidian({
             API: services.API,
             setting: services.setting,
@@ -115,9 +122,9 @@ export default class ObsidianLiveSyncPlugin extends Plugin {
             path: services.path,
             replication: services.replication,
             storageAccess: storageAccess,
-            fileReflectionProvenance: createFileReflectionProvenance(services.keyValueDB),
+            fileReflectionProvenance: createFileReflectionProvenance(services.keyValueDB, true),
         });
-        const rebuilder = new ServiceRebuilder({
+        const rebuilder = new ObsidianRebuilder({
             path: services.path,
             events: services.context.events,
             API: services.API,
@@ -180,7 +187,8 @@ export default class ObsidianLiveSyncPlugin extends Plugin {
                 const addOns = [new ConfigSync(core), new HiddenFileSync(core), new LocalDatabaseMaintenance(core)];
                 return addOns;
             },
-            (core) => {
+            (core, coreFeatureViews) => {
+                useReflectionRecoveryReview(core, coreFeatureViews.reflectionRecovery, serviceHub.context.noticeGroups);
                 //TODO Fix: useXXXX
                 const featuresInitialiser = enableI18nFeature;
                 const curriedFeature = () => featuresInitialiser(core);
@@ -225,7 +233,8 @@ export default class ObsidianLiveSyncPlugin extends Plugin {
                     waitForCompatibilityReview: () => compatibilityReview.openReview(),
                 });
                 useReviewHarness(core, this, compatibilityReview);
-            }
+            },
+            { recoverFileReflectionFailures: true }
         );
     }
 

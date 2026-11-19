@@ -5143,6 +5143,15 @@ export const allMessages: Readonly<Record<string, Readonly<Record<string, string
         zh: "显示日志",
         "zh-tw": "顯示日誌",
     },
+    "moduleLog.syncMode.configured": {
+        def: "Configured automatic synchronisation: ${modes}.",
+    },
+    "moduleLog.syncMode.manual": {
+        def: "Manual synchronisation only. Automatic synchronisation is disabled.",
+    },
+    "moduleLog.syncMode.periodic": {
+        def: "Periodic",
+    },
     "moduleMigration.fix0256.buttons.checkItLater": {
         def: "Check it later",
         es: "Comprobarlo más tarde",
@@ -14064,6 +14073,18 @@ export const allMessages: Readonly<Record<string, Readonly<Record<string, string
         ru: "Почти готово: нужно ваше решение",
         zh: "即将完成：还需要做出选择",
         "zh-tw": "大致完成：需要你做出決定",
+    },
+    "Ui.SetupWizard.OutroExistingUser.FetchSyncGuidance": {
+        def: "Fetch disables **automatic synchronisation** on this device.\n\nAfter restarting, follow the Fetch prompts. Wait for the files to appear in the Vault and review them before choosing a synchronisation mode or triggers in **Sync Settings**.",
+    },
+    "Ui.SetupWizard.OutroExistingUser.Next": {
+        def: "Next",
+    },
+    "Ui.SetupWizard.OutroExistingUser.P2PFetchSyncGuidance": {
+        def: "Fetch disables **P2P auto-start and change announcements** on this device.\n\nAfter restarting, follow the Fetch prompts. Wait for the files to appear in the Vault and review them. Test manual synchronisation in **P2P Status** before re-enabling automatic options.",
+    },
+    "Ui.SetupWizard.OutroExistingUser.RestartConfirmationTitle": {
+        def: "Before restarting",
     },
     "Ui.SetupWizard.OutroNewP2PUser.GuidanceNotice": {
         def: "P2P has no central server copy to overwrite. This step prepares only this device; keep it online when another device fetches its initial data.",

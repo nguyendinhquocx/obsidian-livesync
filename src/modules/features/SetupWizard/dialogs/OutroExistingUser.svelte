@@ -5,15 +5,22 @@
     import Question from "@/modules/services/LiveSyncUI/components/Question.svelte";
     import Instruction from "@/modules/services/LiveSyncUI/components/Instruction.svelte";
     import UserDecisions from "@/modules/services/LiveSyncUI/components/UserDecisions.svelte";
+    import PlaintextReceiptWarning from "./PlaintextReceiptWarning.svelte";
     import { $msg as translateMessage } from "@/common/translation";
 
-    import { TYPE_CANCELLED, TYPE_APPLY, type OutroExistingUserResultType } from "./setupDialogTypes";
+    import {
+        TYPE_CANCELLED,
+        TYPE_APPLY,
+        type OutroApplyInitialData,
+        type OutroExistingUserResultType,
+    } from "./setupDialogTypes";
     type Props = {
         setResult: (result: OutroExistingUserResultType) => void;
-        getInitialData?: () => { isP2P?: boolean } | undefined;
+        getInitialData?: () => OutroApplyInitialData | undefined;
     };
     const { setResult, getInitialData }: Props = $props();
     const isP2P = $derived(getInitialData?.()?.isP2P === true);
+    const enableUnencryptedContent = $derived(getInitialData?.()?.enableUnencryptedContent === true);
 </script>
 
 {#if isP2P}
@@ -37,14 +44,6 @@
             {translateMessage("Restart this device, then choose the source device when P2P Rebuild opens.")}
         </Question>
     </Instruction>
-    <UserDecisions>
-        <Decision
-            title={translateMessage("Restart and Select Source Device")}
-            important={true}
-            commit={() => setResult(TYPE_APPLY)}
-        />
-        <Decision title={translateMessage("No, please take me back")} commit={() => setResult(TYPE_CANCELLED)} />
-    </UserDecisions>
 {:else}
     <DialogHeader title={translateMessage("Setup Complete: Preparing to Fetch Synchronisation Data")} />
     <Guidance>
@@ -64,19 +63,16 @@
             )}
         </p>
     </Guidance>
-    <Instruction>
-        <Question
-            >{translateMessage(
-                "Please select the button below to restart and proceed to the data fetching confirmation."
-            )}</Question
-        >
-    </Instruction>
-    <UserDecisions>
-        <Decision
-            title={translateMessage("Restart and Fetch Data")}
-            important={true}
-            commit={() => setResult(TYPE_APPLY)}
-        />
-        <Decision title={translateMessage("No, please take me back")} commit={() => setResult(TYPE_CANCELLED)} />
-    </UserDecisions>
 {/if}
+
+{#if enableUnencryptedContent}
+    <PlaintextReceiptWarning />
+{/if}
+<UserDecisions>
+    <Decision
+        title={translateMessage("Ui.SetupWizard.OutroExistingUser.Next")}
+        important={true}
+        commit={() => setResult(TYPE_APPLY)}
+    />
+    <Decision title={translateMessage("No, please take me back")} commit={() => setResult(TYPE_CANCELLED)} />
+</UserDecisions>

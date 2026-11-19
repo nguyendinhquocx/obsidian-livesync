@@ -23,7 +23,7 @@ import {
     eventHub,
 } from "@/common/events.ts";
 import { HiddenFileSync } from "@/features/HiddenFileSync/CmdHiddenFileSync.ts";
-import { EVENT_REQUEST_SHOW_HISTORY } from "@/common/obsidianEvents.ts";
+import { EVENT_REQUEST_SHOW_HISTORY } from "@/modules/features/DocumentHistory/events.ts";
 import type { ObsidianLiveSyncSettingTab } from "./ObsidianLiveSyncSettingTab.ts";
 import type { PageFunctions } from "./SettingPane.ts";
 import { setButtonDestructiveState } from "./settingComponentStyles.ts";
@@ -65,6 +65,7 @@ import {
     MetadataIdentityRepairExecutions,
 } from "@/serviceFeatures/metadataIdentityRepair.ts";
 import { showDiagnosticFileLookup } from "@/serviceFeatures/diagnosticFileLookup.ts";
+import { OPEN_REFLECTION_RECOVERY_REVIEW } from "@/serviceFeatures/replication/reflectionRecoveryCommand.ts";
 export function paneHatch(this: ObsidianLiveSyncSettingTab, paneEl: HTMLElement, { addPanel }: PageFunctions): void {
     // const hatchWarn = this.createEl(paneEl, "div", { text: `To stop the boot up sequence for fixing problems on databases, you can put redflag.md on top of your vault (Rebooting obsidian is required).` });
     // hatchWarn.addClass("op-warn-info");
@@ -1126,6 +1127,16 @@ export function paneHatch(this: ObsidianLiveSyncSettingTab, paneEl: HTMLElement,
                         Logger("done", LOG_LEVEL_NOTICE, "verify");
                         // Logger(`${i}/${files.length}\n`, LOG_LEVEL_NOTICE, "verify-processed");
                     })
+            );
+        new Setting(paneEl)
+            .setName($msg("Review files which could not be reflected"))
+            .setDesc($msg("Review files which could not be reflected into the Vault after synchronisation."))
+            .addButton((button) =>
+                button
+                    .setButtonText($msg("Review files"))
+                    .onClick(
+                        () => void this.core.services.UI.commands.invoke(OPEN_REFLECTION_RECOVERY_REVIEW, undefined)
+                    )
             );
         new Setting(paneEl)
             .setName($msg("Resolve All conflicted files by the newer one"))

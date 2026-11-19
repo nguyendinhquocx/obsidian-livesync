@@ -20,6 +20,12 @@
     "test:daemon-startup": {
         "test": ["test-daemon-startup.ts"]
     },
+    "test:daemon-watch-paths": {
+        "test": ["test-daemon-watch-paths.ts"]
+    },
+    "test:legacy-case-lookup": {
+        "test": ["test-legacy-case-lookup.ts"]
+    },
     "test:decoupled-vault": {
         "test": ["test-decoupled-vault.ts"]
     },
@@ -34,6 +40,9 @@
     },
     "test:fetch-on-demand-chunks": {
         "test": ["test-fetch-on-demand-chunks.ts"]
+    },
+    "test:fetch-unrecognised-encrypted-document": {
+        "test": ["test-fetch-unrecognised-encrypted-document.ts"]
     },
     "test:remote-administration-exit-codes": {
         "test": ["test-remote-administration-exit-codes.ts"]

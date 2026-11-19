@@ -4,8 +4,8 @@ import { LOG_LEVEL_URGENT } from "octagonal-wheels/common/logger";
 import { bindableFunction } from "@vrtmrz/livesync-commonlib/compat/services/lib/HandlerUtils";
 
 const unusedStartupDependencies: readonly [string, readonly string[]][] = [
+    ["./serviceFeatures/replication/reflectionRecoveryReview", ["useReflectionRecoveryReview"]],
     ["@/serviceFeatures/useP2PSettingsPreparation", ["useP2PSettingsPreparation"]],
-    ["@vrtmrz/livesync-commonlib/compat/common/coreEnvFunctions", ["setGetLanguage"]],
     ["./features/LiveSyncCommands.ts", ["LiveSyncCommands"]],
     ["./features/HiddenFileSync/CmdHiddenFileSync.ts", ["HiddenFileSync"]],
     ["./features/ConfigSync/CmdConfigSync.ts", ["ConfigSync"]],
@@ -42,6 +42,7 @@ const unusedStartupDependencies: readonly [string, readonly string[]][] = [
     ["@vrtmrz/livesync-commonlib/p2p", ["useP2PReplicatorCommands", "useP2PReplicatorFeature"]],
     ["./serviceFeatures/useP2PReplicatorUI.ts", ["useP2PReplicatorUI"]],
     ["./serviceFeatures/useReviewHarness.ts", ["useReviewHarness"]],
+    ["./serviceFeatures/databaseConnectionRecovery.ts", ["useDatabaseConnectionRecovery"]],
     ["./features/P2PSync/P2PReplicator/P2PReplicationUI.ts", ["createOpenReplicationUI", "createOpenRebuildUI"]],
     ["./serviceFeatures/compatibilityReview.ts", ["useCompatibilityReview"]],
     ["./serviceFeatures/compatibilityReviewObsidian.ts", ["createObsidianCompatibilityReviewUi"]],
@@ -58,7 +59,13 @@ const unusedStartupDependencies: readonly [string, readonly string[]][] = [
 
 beforeEach(() => {
     vi.resetModules();
-    vi.doMock("./deps", () => ({ Plugin: class {}, Notice: class {}, getLanguage: () => "en" }));
+    const getLanguage = () => "en";
+    vi.doMock("./deps", () => ({ Plugin: class {}, Notice: class {}, getLanguage }));
+    // The translation module reads the language as soon as it is imported.
+    vi.doMock("@vrtmrz/livesync-commonlib/compat/common/coreEnvFunctions", () => ({
+        getLanguage,
+        setGetLanguage: vi.fn(),
+    }));
     for (const [specifier, names] of unusedStartupDependencies) {
         vi.doMock(specifier, () => Object.fromEntries(names.map((name) => [name, vi.fn()])));
     }

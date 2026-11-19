@@ -9,7 +9,7 @@ import {
 } from "@vrtmrz/livesync-commonlib/compat/common/types";
 import { SettingService } from "@vrtmrz/livesync-commonlib/compat/services/base/SettingService";
 import { ServiceContext } from "@vrtmrz/livesync-commonlib/context";
-import { createNewVaultSettings } from "@/common/newVaultSettings";
+import { createNewVaultSettings } from "@/common/core/settings/newVaultSettings";
 import type {
     P2PConnectionProbeAdmission,
     P2PConnectionProbeAdmissionResult,
@@ -108,6 +108,7 @@ function createSetupManager() {
     } as any;
     const core: any = {
         _services: services,
+        confirm: { confirmWithMessage: vi.fn() },
         rebuilder: {
             scheduleRebuild: vi.fn(async (prepareBeforeRestart?: () => Promise<void>) => {
                 await prepareBeforeRestart?.();
@@ -301,7 +302,8 @@ describe("SetupManager", () => {
             pathNormalizationVersion: 1,
             idDerivationVersion: 1,
             idDerivationKey: savedKey,
-        };
+            acceptUnencryptedContent: true,
+        } as ObsidianLiveSyncSettings;
         const imported = {
             ...createLegacyRemoteSetting(),
             isConfigured: true,
@@ -318,6 +320,7 @@ describe("SetupManager", () => {
         expect(mergedSettings.pathNormalizationVersion).toBe(0);
         expect(mergedSettings.idDerivationVersion).toBe(0);
         expect(mergedSettings.idDerivationKey).toBe("");
+        expect((mergedSettings as any).acceptUnencryptedContent).toBe(false);
         expect(setting.currentSettings().idDerivationKey).toBe(savedKey);
     });
 
@@ -329,7 +332,8 @@ describe("SetupManager", () => {
             isConfigured: true,
             idDerivationVersion: 1,
             idDerivationKey: savedKey,
-        };
+            acceptUnencryptedContent: true,
+        } as ObsidianLiveSyncSettings;
         const imported = {
             ...createLegacyRemoteSetting(),
             isConfigured: true,
@@ -383,7 +387,97 @@ describe("SetupManager", () => {
         const mergedSettings = vi.mocked(setting.adjustSettings).mock.calls[0][0];
         expect(mergedSettings.idDerivationVersion).toBe(0);
         expect(mergedSettings.idDerivationKey).toBe("");
+        expect((mergedSettings as any).acceptUnencryptedContent).toBe(false);
         expect(setting.currentSettings().idDerivationKey).toBe(savedKey);
+    });
+
+    it("normalises a malformed plaintext receipt value in a Setup URI to false", async () => {
+        const { manager, setting, dialogManager } = createSetupManager();
+        setting.settings = Object.assign(createLegacyRemoteSetting(), { acceptUnencryptedContent: true });
+        const imported = Object.assign(createLegacyRemoteSetting(), { acceptUnencryptedContent: "true" });
+        vi.spyOn(setting, "adjustSettings").mockImplementation((settings) => Promise.resolve(settings));
+        dialogManager.openWithExplicitCancel.mockResolvedValueOnce(imported).mockResolvedValueOnce("cancelled");
+
+        await manager.onUseSetupURI(UserMode.Unknown, "mock-config://invalid-plaintext-policy");
+
+        expect((vi.mocked(setting.adjustSettings).mock.calls[0]![0] as any).acceptUnencryptedContent).toBe(false);
+    });
+
+    it.each(["setup-uri", "qr"] as const)("preserves an explicit plaintext receipt choice from %s", async (source) => {
+        const { manager, setting, dialogManager } = createSetupManager();
+        const imported = Object.assign(createLegacyRemoteSetting(), { acceptUnencryptedContent: true });
+        vi.spyOn(setting, "adjustSettings").mockImplementation((settings) => Promise.resolve(settings));
+        if (source === "setup-uri") {
+            dialogManager.openWithExplicitCancel.mockResolvedValueOnce(imported).mockResolvedValueOnce("cancelled");
+            await manager.onUseSetupURI(UserMode.Unknown, "mock-config://enabled-plaintext-policy");
+        } else {
+            vi.mocked(decodeSettingsFromQRCodeData).mockReturnValue(imported);
+            dialogManager.openWithExplicitCancel.mockResolvedValueOnce("cancelled");
+            await manager.decodeQR("qr-data");
+        }
+
+        expect((vi.mocked(setting.adjustSettings).mock.calls[0]![0] as any).acceptUnencryptedContent).toBe(true);
+    });
+
+    it("warns in the existing application confirmation when an import enables plaintext receipt", async () => {
+        const { manager, setting, dialogManager } = createSetupManager();
+        setting.settings = Object.assign(setting.currentSettings(), {
+            encrypt: true,
+            acceptUnencryptedContent: false,
+        });
+        const imported = { ...setting.currentSettings(), acceptUnencryptedContent: true };
+        dialogManager.openWithExplicitCancel.mockResolvedValueOnce("cancelled");
+
+        await expect(manager.onConfirmApplySettingsFromWizard(imported, UserMode.ExistingUser)).resolves.toBe(false);
+
+        expect(dialogManager.openWithExplicitCancel).toHaveBeenCalledWith(
+            expect.anything(),
+            expect.objectContaining({ enableUnencryptedContent: true })
+        );
+    });
+
+    it("applies a preference-only import to an existing vault without Fetch or Rebuild", async () => {
+        const { manager, setting, dialogManager, core } = createSetupManager();
+        setting.settings = Object.assign(setting.currentSettings(), {
+            isConfigured: true,
+            encrypt: true,
+            acceptUnencryptedContent: false,
+        });
+        const imported = { ...setting.currentSettings(), acceptUnencryptedContent: true };
+        dialogManager.openWithExplicitCancel.mockResolvedValueOnce("compatible-existing-user");
+
+        await expect(manager.onConfirmApplySettingsFromWizard(imported, UserMode.Unknown)).resolves.toBe(true);
+
+        expect((setting.currentSettings() as any).acceptUnencryptedContent).toBe(true);
+        expect(core.rebuilder.scheduleFetch).not.toHaveBeenCalled();
+        expect(core.rebuilder.scheduleRebuild).not.toHaveBeenCalled();
+    });
+
+    it("passes the warning through the mode choice before a compatible or new-user application", async () => {
+        const { manager, setting, dialogManager } = createSetupManager();
+        setting.settings = Object.assign(setting.currentSettings(), {
+            encrypt: true,
+            acceptUnencryptedContent: false,
+        });
+        const imported = {
+            ...setting.currentSettings(),
+            couchDB_DBNAME: "imported-vault",
+            acceptUnencryptedContent: true,
+        };
+        dialogManager.openWithExplicitCancel.mockResolvedValueOnce("new-user").mockResolvedValueOnce("cancelled");
+
+        await expect(manager.onConfirmApplySettingsFromWizard(imported, UserMode.Unknown)).resolves.toBe(false);
+
+        expect(dialogManager.openWithExplicitCancel).toHaveBeenNthCalledWith(
+            1,
+            expect.anything(),
+            expect.objectContaining({ enableUnencryptedContent: true })
+        );
+        expect(dialogManager.openWithExplicitCancel).toHaveBeenNthCalledWith(
+            2,
+            expect.anything(),
+            expect.objectContaining({ enableUnencryptedContent: true })
+        );
     });
 
     it("rejects invalid QR settings before applying them", async () => {
@@ -412,11 +506,10 @@ describe("SetupManager", () => {
         const nextIdKey = "78".repeat(32);
         setting.settings = currentSettings;
         const applyPartial = vi.spyOn(setting, "applyPartial");
-        core.confirm = {
-            askSelectStringDialogue: vi.fn(() =>
-                Promise.resolve("Enable without rebuilding — update every other device first")
-            ),
-        };
+        core.confirm.askSelectStringDialogue = vi.fn(() =>
+            Promise.resolve("Enable without rebuilding — update every other device first")
+        );
+        core.confirm.confirmWithMessage.mockResolvedValueOnce("Restart and Fetch Data");
         dialogManager.openWithExplicitCancel
             .mockResolvedValueOnce({
                 ...currentSettings,
@@ -481,7 +574,98 @@ describe("SetupManager", () => {
 
         expect(dialogManager.openWithExplicitCancel).toHaveBeenCalledWith(expect.anything(), {
             isP2P: true,
+            enableUnencryptedContent: false,
         });
+    });
+
+    it.each([
+        {
+            name: "CouchDB",
+            remoteType: REMOTE_COUCHDB,
+            restart: "Restart and Fetch Data",
+            settingsPage: "Sync Settings",
+        },
+        {
+            name: "Object Storage",
+            remoteType: REMOTE_MINIO,
+            restart: "Restart and Fetch Data",
+            settingsPage: "Sync Settings",
+        },
+        {
+            name: "P2P",
+            remoteType: REMOTE_P2P,
+            restart: "Restart and Select Source Device",
+            settingsPage: "P2P Status",
+        },
+    ])(
+        "waits for the restart confirmation before reserving Fetch for $name",
+        async ({ remoteType, restart, settingsPage }) => {
+            const { manager, setting, dialogManager, core } = createSetupManager();
+            const applyExternalSettings = vi.spyOn(setting, "applyExternalSettings");
+            const extra = vi.fn();
+            dialogManager.openWithExplicitCancel.mockResolvedValueOnce("apply");
+            core.confirm.confirmWithMessage.mockImplementationOnce(async () => {
+                expect(core.rebuilder.scheduleFetch).not.toHaveBeenCalled();
+                expect(applyExternalSettings).not.toHaveBeenCalled();
+                expect(extra).not.toHaveBeenCalled();
+                return restart;
+            });
+
+            await manager.onConfirmApplySettingsFromWizard(
+                { ...createLegacyRemoteSetting(), isConfigured: true, remoteType },
+                UserMode.ExistingUser,
+                true,
+                extra
+            );
+
+            expect(core.confirm.confirmWithMessage).toHaveBeenCalledExactlyOnceWith(
+                "Before restarting",
+                expect.stringContaining(settingsPage),
+                [restart, "Cancel"],
+                restart
+            );
+            expect(core.rebuilder.scheduleFetch).toHaveBeenCalledOnce();
+            expect(applyExternalSettings).toHaveBeenCalledOnce();
+            expect(extra).toHaveBeenCalledOnce();
+        }
+    );
+
+    it.each(["Cancel", false])("leaves settings and Fetch alone when the restart dialogue returns %s", async (action) => {
+        const { manager, setting, dialogManager, core } = createSetupManager();
+        const applyExternalSettings = vi.spyOn(setting, "applyExternalSettings");
+        const extra = vi.fn();
+        dialogManager.openWithExplicitCancel.mockResolvedValueOnce("apply");
+        core.confirm.confirmWithMessage.mockResolvedValueOnce(action);
+
+        await expect(
+            manager.onConfirmApplySettingsFromWizard(
+                { ...createLegacyRemoteSetting(), isConfigured: true },
+                UserMode.ExistingUser,
+                true,
+                extra
+            )
+        ).resolves.toBe(false);
+
+        expect(dialogManager.openWithExplicitCancel).toHaveBeenCalledOnce();
+        expect(core.confirm.confirmWithMessage).toHaveBeenCalledOnce();
+        expect(core.rebuilder.scheduleFetch).not.toHaveBeenCalled();
+        expect(applyExternalSettings).not.toHaveBeenCalled();
+        expect(extra).not.toHaveBeenCalled();
+    });
+
+    it("does not add a migrated remote profile to the current settings when cancelling a legacy Setup URI", async () => {
+        const { manager, setting, dialogManager, core } = createSetupManager();
+        const before = structuredClone(setting.currentSettings());
+        dialogManager.openWithExplicitCancel
+            .mockResolvedValueOnce({ isConfigured: true, remoteType: REMOTE_COUCHDB, couchDB_URI: "http://localhost:5984" })
+            .mockResolvedValueOnce("apply");
+        core.confirm.confirmWithMessage.mockResolvedValueOnce("Cancel");
+
+        await expect(manager.onUseSetupURI(UserMode.ExistingUser, "mock-config://settings")).resolves.toBe(false);
+
+        expect(setting.currentSettings()).toEqual(before);
+        expect(setting.saveSettingData).not.toHaveBeenCalled();
+        expect(core.rebuilder.scheduleFetch).not.toHaveBeenCalled();
     });
 
     it("reserves Fetch when compatible imported settings activate an unconfigured device", async () => {
@@ -635,7 +819,7 @@ describe("SetupManager", () => {
     );
 
     it("adds and activates a manually configured CouchDB without replacing existing profiles", async () => {
-        const { manager, setting, dialogManager } = createSetupManager();
+        const { manager, setting, dialogManager, core } = createSetupManager();
         setting.settings = {
             ...setting.currentSettings(),
             customChunkSize: 60,
@@ -665,7 +849,8 @@ describe("SetupManager", () => {
                 jwtExpDuration: 5,
                 useRequestAPI: false,
             })
-            .mockResolvedValueOnce(true);
+            .mockResolvedValueOnce("apply");
+        core.confirm.confirmWithMessage.mockResolvedValueOnce("Restart and Fetch Data");
 
         await manager.onCouchDBManualSetup(UserMode.ExistingUser, setting.currentSettings());
 
@@ -713,7 +898,7 @@ describe("SetupManager", () => {
     );
 
     it("adds and activates a manually configured Object Storage profile without replacing existing profiles", async () => {
-        const { manager, setting, dialogManager } = createSetupManager();
+        const { manager, setting, dialogManager, core } = createSetupManager();
         setting.settings = {
             ...setting.currentSettings(),
             isConfigured: true,
@@ -739,7 +924,8 @@ describe("SetupManager", () => {
                 bucketCustomHeaders: "",
                 forcePathStyle: true,
             })
-            .mockResolvedValueOnce(true);
+            .mockResolvedValueOnce("apply");
+        core.confirm.confirmWithMessage.mockResolvedValueOnce("Restart and Fetch Data");
 
         await manager.onBucketManualSetup(UserMode.ExistingUser, setting.currentSettings());
 
@@ -917,6 +1103,132 @@ describe("internal Metadata configuration", () => {
             expect(ask.mock.calls[0][1][0]).toContain("update every other device first");
             expect(ask.mock.calls[0][0]).toContain("currently running LiveSync");
             expect(apply).toHaveBeenCalledTimes(accept ? 1 : 0);
+            expect(core.rebuilder.scheduleRebuild).not.toHaveBeenCalled();
+            expect(core.rebuilder.scheduleFetch).not.toHaveBeenCalled();
+        }
+    );
+});
+
+describe("plaintext receipt configuration", () => {
+    it("retains the saved preference when encryption is turned off", async () => {
+        const { manager, setting, dialogManager } = createSetupManager();
+        const current = Object.assign(setting.currentSettings(), {
+            encrypt: true,
+            acceptUnencryptedContent: true,
+        });
+        dialogManager.openWithExplicitCancel.mockResolvedValue({ ...current, encrypt: false });
+        const confirm = vi.spyOn(manager, "onConfirmApplySettingsFromWizard").mockResolvedValue(true);
+
+        await expect(manager.onlyE2EEConfiguration(UserMode.Update, current)).resolves.toBe(true);
+
+        expect(confirm).toHaveBeenCalledWith(
+            expect.objectContaining({ encrypt: false, acceptUnencryptedContent: true }),
+            UserMode.Update
+        );
+    });
+
+    it("keeps the normal setup path when the E2EE passphrase changes with plaintext receipt", async () => {
+        const { manager, setting, dialogManager } = createSetupManager();
+        const current = Object.assign(setting.currentSettings(), {
+            encrypt: true,
+            passphrase: "old-passphrase",
+            acceptUnencryptedContent: false,
+        });
+        dialogManager.openWithExplicitCancel.mockResolvedValue({
+            ...current,
+            passphrase: "new-passphrase",
+            acceptUnencryptedContent: true,
+        });
+        const apply = vi.spyOn(setting, "applyPartial");
+        const confirm = vi.spyOn(manager, "onConfirmApplySettingsFromWizard").mockResolvedValue(true);
+
+        await expect(manager.onlyE2EEConfiguration(UserMode.Update, current)).resolves.toBe(true);
+
+        expect(apply).not.toHaveBeenCalled();
+        expect(confirm).toHaveBeenCalledWith(
+            expect.objectContaining({ passphrase: "new-passphrase", acceptUnencryptedContent: true }),
+            UserMode.Update
+        );
+    });
+
+    it("applies a plaintext receipt preference alone without setup initialisation", async () => {
+        const { manager, setting, dialogManager, core } = createSetupManager();
+        const current = Object.assign(setting.currentSettings(), {
+            encrypt: true,
+            acceptUnencryptedContent: false,
+        });
+        dialogManager.openWithExplicitCancel.mockResolvedValue({ ...current, acceptUnencryptedContent: true });
+        const apply = vi.spyOn(setting, "applyPartial").mockImplementation(async (partial) => {
+            Object.assign(setting.settings, partial);
+        });
+        const confirm = vi.spyOn(manager, "onConfirmApplySettingsFromWizard");
+
+        await expect(manager.onlyE2EEConfiguration(UserMode.Update, current)).resolves.toBe(true);
+
+        expect(apply).toHaveBeenCalledWith(expect.objectContaining({ acceptUnencryptedContent: true }), true);
+        expect(confirm).not.toHaveBeenCalled();
+        expect((setting.currentSettings() as any).acceptUnencryptedContent).toBe(true);
+        expect(core.rebuilder.scheduleRebuild).not.toHaveBeenCalled();
+        expect(core.rebuilder.scheduleFetch).not.toHaveBeenCalled();
+    });
+
+    it("does not show the Metadata Rebuild warning when only plaintext receipt changes", async () => {
+        const { manager, setting, dialogManager, core } = createSetupManager();
+        const current = Object.assign(setting.currentSettings(), {
+            encrypt: true,
+            encryptInternalMetadata: true,
+            acceptUnencryptedContent: false,
+            remoteType: REMOTE_COUCHDB,
+        });
+        dialogManager.openWithExplicitCancel.mockResolvedValue({ ...current, acceptUnencryptedContent: true });
+        const ask = vi.fn(async (_message: string, choices: string[]) => choices[0]);
+        core.confirm = { askSelectStringDialogue: ask };
+        const apply = vi.spyOn(setting, "applyPartial").mockResolvedValue(undefined);
+
+        await expect(manager.onlyE2EEConfiguration(UserMode.Update, current)).resolves.toBe(true);
+
+        expect(ask).not.toHaveBeenCalled();
+        expect(apply).toHaveBeenCalledWith(expect.objectContaining({ acceptUnencryptedContent: true }), true);
+        expect(core.rebuilder.scheduleRebuild).not.toHaveBeenCalled();
+        expect(core.rebuilder.scheduleFetch).not.toHaveBeenCalled();
+    });
+
+    it.each([true, false])(
+        "retains the internal Metadata warning when both preferences change (accepted: %s)",
+        async (accept) => {
+            const { manager, setting, dialogManager, core } = createSetupManager();
+            const current = Object.assign(setting.currentSettings(), {
+                encrypt: true,
+                encryptInternalMetadata: false,
+                acceptUnencryptedContent: false,
+                remoteType: REMOTE_COUCHDB,
+            });
+            dialogManager.openWithExplicitCancel.mockResolvedValue({
+                ...current,
+                encryptInternalMetadata: true,
+                acceptUnencryptedContent: true,
+            });
+            const ask = vi.fn(async (_message: string, choices: string[]) => (accept ? choices[0] : "Cancel"));
+            core.confirm = { askSelectStringDialogue: ask };
+            const apply = vi.spyOn(setting, "applyPartial").mockImplementation(async (partial) => {
+                Object.assign(setting.settings, partial);
+            });
+
+            await expect(manager.onlyE2EEConfiguration(UserMode.Update, current)).resolves.toBe(accept);
+
+            expect(ask).toHaveBeenCalledOnce();
+            expect(ask.mock.calls[0]![0]).toContain("currently running LiveSync");
+            expect(apply).toHaveBeenCalledTimes(accept ? 1 : 0);
+            if (accept) {
+                expect(apply.mock.calls[0]![0]).toEqual(
+                    expect.objectContaining({
+                        encryptInternalMetadata: true,
+                        acceptUnencryptedContent: true,
+                    })
+                );
+                expect(setting.currentSettings().encryptInternalMetadata).toBe(true);
+                expect((setting.currentSettings() as any).acceptUnencryptedContent).toBe(true);
+            }
             expect(core.rebuilder.scheduleRebuild).not.toHaveBeenCalled();
             expect(core.rebuilder.scheduleFetch).not.toHaveBeenCalled();
         }

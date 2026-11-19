@@ -279,7 +279,9 @@ The list shows each device ID, recorded platform, plug-in version, app version, 
 
 Before synchronisation starts, and when this dialogue refreshes, Self-hosted LiveSync checks for recorded plug-in versions newer or older than its own. These Notices recommend reviewing and aligning plug-in versions across devices; they are advisory and do not stop synchronisation. The dialogue explains that synchronisation between different versions is generally safe unless the connection is explicitly blocked, but may be less efficient or use more storage. P2P synchronisation may also be unavailable. Unknown development version labels are left unclassified. Automatic checks run at most once per minute when synchronisation starts; they do not poll a continuously running connection.
 
-**Forget device** removes another device's participation records after confirmation. It preserves the remote lock state and every other device. It does not delete Vault files or revoke credentials. A device can register again on an unlocked remote; on a locked remote, the existing recovery process applies. The result is checked after saving to CouchDB; if it cannot be confirmed, refresh the list and try again. CouchDB stores these records together in a local document which does not reject simultaneous updates, so changes from other devices can be overwritten. Pausing synchronisation on the other devices avoids that overlap. Object Storage uses conditional updates; if the server cannot support them, the record is retained.
+Choose **Mute version notices** on another device's row to exclude that device from newer- and older-version Notices. Other devices can still trigger a Notice for the same version. The choices are saved only for this Vault on this device and remain in effect after restarting Obsidian. Choose **Unmute version notices** to allow that device's version Notices again. Device review and synchronisation compatibility checks remain available.
+
+Choose **… → Forget device record…** on another device's row to review the removal confirmation. **Forget device record** then removes that device's participation records. It preserves the remote lock state and every other device. It does not delete Vault files or revoke credentials. A device can register again on an unlocked remote; on a locked remote, the existing recovery process applies. The result is checked after saving to CouchDB; if it cannot be confirmed, refresh the list and try again. CouchDB stores these records together in a local document which does not reject simultaneous updates, so changes from other devices can be overwritten. Pausing synchronisation on the other devices avoids that overlap. Object Storage uses conditional updates; if the server cannot support them, the record is retained.
 
 ### 2. Notification
 
@@ -330,6 +332,14 @@ Setting key: encryptInternalMetadata
 For CouchDB, this encrypts paths, times, sizes, and Chunk references in the Metadata used by Hidden File Sync and Customisation Sync. It requires E2EE V2 and **Property Encryption**. New Vaults enable the preference by default, but it has no effect until those prerequisites are enabled. Existing Vaults and older Setup URIs and QR codes keep it disabled unless you enable it.
 
 Enabling the preference protects future Metadata writes. Existing Metadata and earlier revisions can remain readable in the remote database. If you want to protect existing Metadata too, prepare the authoritative data, update every device to a compatible version, and manually Rebuild the remote database. LiveSync does not gather data or start a Rebuild when you change this preference. The action to enable it without rebuilding explicitly reminds you to update every other synchronising device first, including devices currently running LiveSync. Plaintext and encrypted Metadata can coexist during the transition. Document IDs, revision information, document counts, and ciphertext lengths remain visible.
+
+#### Accept unencrypted content
+
+Setting key: `acceptUnencryptedContent`
+
+This preference is disabled by default. With End-to-End Encryption enabled, it allows us to receive plaintext content written by third-party tools which do not use the E2EE passphrase. It affects receipt only; content sent by this plug-in remains encrypted. Anyone with write access to the CouchDB database can inject plaintext.
+
+The setting is included in exported settings Markdown, Setup URIs, and QR codes. Its saved value is retained while E2EE is off, but has no effect then. With E2EE enabled and this preference on, the E2EE Configuration summary reports its status and effect. Changing only this preference applies it to the active CouchDB connection without a Fetch or Rebuild. Other encryption changes keep their existing application requirements.
 
 #### Encryption Algorithm
 
@@ -967,6 +977,10 @@ Select **Begin inspection** to run the inspection. Each reported file and curren
 
 The same inspection also reports local Metadata whose stored document ID does not agree with its recorded path. A stale entry does not suppress ordinary inspection when consistently addressed Metadata can still be resolved for that logical path; otherwise, the unresolved path is excluded from ordinary file-repair actions. When the current winner has no conflict leaves and has an unambiguous target, its wrench menu offers a separately confirmed, one-entry repair. The target is derived from the current local file-name case and path obfuscation settings, then written and verified before the obsolete ID is removed. Ambiguous, conflicted, deleted, excluded, or otherwise unsafe entries remain read-only. This action does not rename Vault files or folders. Follow [Repair a Metadata document ID mismatch](recovery.md#repair-a-metadata-document-id-mismatch) for the complete backup, repair, propagation, and verification procedure. For widespread naming differences across devices, use that guide to choose an authoritative Vault, correct its storage names while Obsidian is closed, rebuild the central remote, and reset the other devices.
 
+#### Review files which could not be reflected
+
+Select **Review files** to inspect Vault files whose received Metadata could not be reflected after synchronisation. The dialogue lists each retained target with its state (**Waiting** or **Needs review**) and reason, and offers **Retry this file** once the underlying condition is resolved. Follow [Review files which could not be reflected](recovery.md#review-files-which-could-not-be-reflected) for when automatic retry applies and when Obsidian must be restarted.
+
 #### Resolve All conflicted files by the newer one
 
 After confirmation, resolve every conflict by modification time. This logically deletes every version except the newest one. It is a destructive policy choice and cannot recover content which is already unavailable.
@@ -1263,7 +1277,7 @@ Setting key: disableCheckingConfigMismatch
 
 Setting key: maxMTimeForReflectEvents
 
-Files with modification times greater than this value (in seconds since the Unix epoch) will not have their events reflected. Set to 0 to disable this limit.
+Files with modification times greater than this value (in milliseconds since the Unix epoch) will not have their events reflected. Set to 0 to disable this limit.
 
 ## 11. Maintenance
 

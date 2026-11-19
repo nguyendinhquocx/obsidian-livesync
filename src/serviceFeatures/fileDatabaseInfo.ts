@@ -26,7 +26,7 @@ type DatabaseMeta = LoadedEntry & {
 export type FileDatabaseInfoCore = {
     localDatabase: Pick<
         LiveSyncLocalDB,
-        "allDocsRaw" | "findAllDocs" | "getDBEntryFromMeta" | "getDBEntry" | "localDatabase"
+        "allDocsRaw" | "findAllDocs" | "getDBEntryFromMeta" | "getDBEntry" | "readFromDatabase"
     >;
     services: {
         path: Pick<IPathService, "path2id">;
@@ -152,7 +152,7 @@ async function getLocalDatabaseMeta(
     checkInspectionCancelled(target?.signal);
     let raw: RawDatabaseDocument;
     try {
-        raw = await core.localDatabase.localDatabase.get(documentId, options);
+        raw = await core.localDatabase.readFromDatabase((database) => database.get(documentId, options));
     } catch (error) {
         checkInspectionCancelled(target?.signal);
         if (isNotFoundError(error)) {
@@ -463,6 +463,8 @@ export async function copyFileDatabaseInfo(core: FileDatabaseInfoCore, path: str
 export async function collectFileDatabaseInfoPaths(core: FileDatabaseInfoCore): Promise<string[]> {
     const ignorePatterns = getFileRegExp(core.settings, "syncInternalFilesIgnorePatterns");
     const targetPatterns = getFileRegExp(core.settings, "syncInternalFilesTargetPatterns");
+    // These names seed a chooser or inspection; per-entry reads establish current
+    // state before offering actions. Hidden-file mode keeps its separate listing scope.
     const storagePaths = core.settings.syncInternalFiles
         ? await core.storageAccess.getFilesIncludeHidden("/", targetPatterns, ignorePatterns)
         : await core.storageAccess.getFileNames();

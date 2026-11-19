@@ -29,6 +29,10 @@ Use these references for the area being changed, together with its relevant ADR.
 | Area | References |
 |---|---|
 | Overall synchronisation and terminology | [Technical overview](tech_info.md), [glossary](glossary.md), and [terminology conventions](terms.md) |
+| Recovering unapplied logical deletions | [Deletion recovery design](design_docs/database_to_vault_deletion_recovery.md): accepted implementation design; published in Self-hosted LiveSync 1.0.48 with Commonlib 0.4.2 |
+| Local database connection recovery | [Local database connection recovery](design_docs/local_database_connection_recovery.md): accepted implementation for #1360, included in 1.0.51 with Commonlib 0.6.0; physical iPhone recovery remains unverified |
+| File reflection recovery | [File reflection recovery](design_docs/chunk_transport_failure_recovery.md): accepted implementation for #1224 and #1360, included in 1.0.51 with Commonlib 0.6.0; physical iPhone recovery remains unverified |
+| File writing, Vault reflection, and recovery ownership | [Write and reflection paths](design_docs/file_write_and_reflection_paths.md): entry policies, completion, retry ownership, and runtime access costs |
 | Metadata, Chunks, and database representations | [Data structures](datastructure.md) |
 | Conflict resolution, provenance, and history restoration | [Conflict and provenance contract](specs_conflict_resolution.md), [Document History restoration](design_docs/document_history_revision_restoration.md), and [local save completion](adr/2026_10_local_file_save_completion_and_batching.md) |
 | Replicator and host boundaries | [Replicator architecture snapshot](design_docs/replicator_architecture.md) and [service feature and legacy Module boundaries](design_docs/service_feature_and_legacy_module_boundaries.md) |
@@ -39,6 +43,7 @@ Use these references for the area being changed, together with its relevant ADR.
 | P2P connection preparation | [TURN connection settings](design_docs/renewable_turn_credentials.md) |
 | Journal storage internals | [Journal Replicator 2nd Edition](design_docs_of_journalsync_2nd.md) |
 | CLI database selection and interrupted reconstruction | [CLI database continuity](design_docs/cli_database_continuity.md) |
+| CLI filesystem monitoring | [CLI watcher path filtering](design_docs/cli_watcher_path_filtering.md): accepted implementation included in 1.0.50; reporter confirmation remains pending |
 
 The installed `@vrtmrz/livesync-commonlib` package is authoritative for shared runtime contracts. Use the exact dependency selected by [package.json](../package.json) and its lockfile when checking behaviour. The [Commonlib documentation](https://github.com/vrtmrz/livesync-commonlib/tree/main/docs) is maintained in that repository; this index does not replace its package contracts.
 
@@ -63,6 +68,7 @@ These records are useful for design work. Their proposed representation or behav
 
 | Document | Recorded state |
 |---|---|
+| [File path index and watched CLI file names](design_docs/file_path_index.md) | Implementation design for #1346, included in 1.0.50; shared name index and collision queries; Commonlib 0.5.0 adopted |
 | [Tiered Chunk Storage with Live Compaction](design_docs/tired_chunk_pack.md) | In design |
 | [Tiered Chunk Storage for Bucket Sync](design_docs/tired_chunk_pack_bucket.md) | In design |
 | [Design intent for Metadata and Chunks](design_docs/intention_of_chunks.md) | Incomplete explanation; use the data-structure reference for current representations |

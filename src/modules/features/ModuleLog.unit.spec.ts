@@ -11,7 +11,7 @@ vi.mock("./Log/LogPaneView.ts", () => ({ LogPaneView: class {}, VIEW_TYPE_LOG: "
 vi.mock("./StatusBarRenderer.ts", () => ({
     createStatusBarRenderer: vi.fn(() => ({ dispose: vi.fn() })),
 }));
-vi.mock("@/common/reportTool.ts", () => ({ generateReport: vi.fn() }));
+vi.mock("@/modules/features/ModuleLog/diagnostics/reportTool.ts", () => ({ generateReport: vi.fn() }));
 vi.mock("@/common/utils.ts", () => ({ isValidPath: () => true }));
 vi.mock("@/common/translation", () => ({ $msg: (key: string) => key }));
 vi.mock("@/common/events.ts", () => ({
@@ -341,13 +341,11 @@ describe("ModuleLog service connection", () => {
                 },
                 APIService: services.API,
                 databaseService: {
-                    localDatabaseDirect: {
-                        onunload: vi.fn(() => services.API.addLog("database-unload")),
-                        close: vi.fn(() => {
-                            started();
-                            return closed;
-                        }),
-                    },
+                    closeDatabase: vi.fn(() => {
+                        services.API.addLog("database-unload");
+                        started();
+                        return closed;
+                    }),
                 },
             } as never);
 

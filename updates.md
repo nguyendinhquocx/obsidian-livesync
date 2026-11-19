@@ -12,6 +12,131 @@ Earlier releases remain available in the 1.0 release history, the 1.0 preview hi
 
 ## Unreleased
 
+### Improved
+
+- When we add a device, we can review which automatic synchronisation settings Fetch disables and how to re-enable them after reviewing the Vault. The confirmation appears before we choose to restart. (#1367)
+
+- When CouchDB Fetch stops on a file body or chunk marked as encrypted in an unsupported format, the CLI and Obsidian explain how to rebuild the remote from another device and retry Fetch. (#1365)
+
+## 1.0.51
+
+18th November, 2026
+
+### Fixed
+
+- Files registered as **Ignore** or **Automatic** in **Customisation sync** no longer trigger new snapshots during configuration scans. (#1359)
+    - Existing snapshots are retained. Exclusions still rely on each item's recorded file list, and this fix does not repair empty or outdated lists.
+
+- **Hidden File Sync** now respects **Customisation sync** exclusions (**Ignore** and **Selective**) for registered paths containing uppercase letters. (#1359)
+    - When **Customisation sync** is enabled, the exclusion check compares both paths in lowercase, restoring case-insensitive matching.
+
+### Improved
+
+- We can see at a glance when automatic synchronisation is disabled, including while it remains suspended after Fetch or Rebuild. (#1361)
+    - A framed badge in the status bar and editor overlay displays the configured **LiveSync**, **Periodic**, **On events**, or manual-only mode alongside current transfer activity.
+    - Available for CouchDB and S3-compatible Object Storage remotes. Fetch and Rebuild retain their existing suspension behaviour.
+
+- We can mute recurring plug-in version Notices for individual devices from **Joined devices** using **Mute version notices**. (#1349, #1368)
+    - Choices are retained only for this Vault on this device and can be reversed with **Unmute version notices**, while synchronisation compatibility checks remain enabled. Removing a device record remains available under **… → Forget device record…**.
+
+#### Recovery work in progress
+
+- This plug-in can now reopen an unavailable local database before resuming synchronisation, after a read against the current connection fails, instead of requiring an immediate force-quit. (#1360)
+    - Local file dispatch is held while the connection is replaced; if reopening fails, this plug-in requests an Obsidian restart. This recovery path does not prevent platform disconnections or detect an adapter operation which never settles.
+    - Controlled Linux Obsidian recovery tests pass; natural background connection loss and recovery on a physical iPhone remain unverified.
+
+- Ordinary Vault files which could not be reflected are retained for recovery and review, rather than remaining silently unapplied until another scan. (#1224, #1360)
+    - Failures at known local database or remote content-read boundaries are eligible for one automatic retry after every required resource recovers. Failures without an established retry condition and items whose automatic allowance is exhausted remain available under **Hatch** → **Recovery and Repair** → **Review files which could not be reflected**.
+    - Native request failures preserve their origin without relying on message text, and reopening the same local database retains saved recovery items and consumed retry allowances.
+
+#### Developer tools
+
+- The Review Harness (enabled via **Power users → Enable Developers' Debug Tools**) adds individual database diagnostics: **Database connection-loss diagnostic**, **Database background-events diagnostic**, and **Database transaction-abort diagnostic**.
+    - These diagnostics use disposable database fixtures and record observations only; a run with no observed failure does not establish that recovery succeeded or attempt automatic product recovery.
+
+### CLI
+
+#### Fixed
+
+- CLI file lookups avoid full Vault scans when checking files which have not arrived locally or have already been deleted. (#1347)
+    - With Legacy file identity (`pathNormalizationVersion: 0`) and case-insensitive file-name handling, matching directory branches are listed directly instead of scanning unrelated Vault subtrees.
+
+### Docker
+
+#### Fixed
+
+- The Docker Compose sample can now re-run initialisation against an already configured CouchDB server and preserve authentication and CORS settings when the container is recreated. (#1356)
+    - The initialisation check authenticates with CouchDB, and a dedicated volume retains runtime configuration. Before recreating CouchDB on an existing stack, save and transfer its settings as described in [Data & Backup](docker/README.md#data--backup).
+
+### Miscellaneous
+
+- Updated dependencies (including `@vrtmrz/livesync-commonlib` 0.6.0).
+
+### Acknowledgements
+
+Thank you for your contributions!
+
+- @levity, for avoiding full Vault scans during case-insensitive CLI file lookups (#1347).
+
+## 1.0.50
+
+12th November, 2026
+
+### Fixed
+
+- File-name collision checks no longer rebuild the whole path map after content-only edits.
+
+#### P2P synchronisation
+
+- Later P2P changes can continue to reach following devices when an earlier change notification was ignored before the peer was accepted. (#1247)
+    - Change notifications no longer wait for a reply from the receiving device. A missed final notification still requires a later change or explicit synchronisation.
+
+### CLI
+
+#### Fixed
+
+- CLI daemon collision checks no longer enumerate every file and its metadata after each content edit. (#1346)
+    - The daemon maintains file names from filesystem observations and checks current directory names before accepting a path.
+
+- We can synchronise CLI Vaults whose root or parent directories have dot-prefixed names, including through symlinks that resolve to those locations. (#1340)
+    - Watch exclusions now apply within the selected Vault. Startup scans and live monitoring share the same exclusions, including PouchDB view indexes.
+    - Hidden entries, the configured database storage entries, and `.livesync/ignore` rules remain excluded.
+
+#### Added
+
+- We can include ordinary directories with database-like names by specifying `--include-db-like-dirs` on each invocation. The CLI's database storage entries, hidden entries, and user ignore rules remain excluded.
+
+## 1.0.49
+
+11th November, 2026
+
+### Changed
+
+#### Encryption
+
+- With E2EE enabled, CouchDB documents containing unencrypted file content are now rejected by default.
+    - To retain the previous behaviour for third-party integrations that intentionally write plaintext, expand **Advanced** in the E2EE dialogue and enable **Accept unencrypted content**. The setting is off by default.
+    - Enabling it allows anyone with write access to the remote database to supply plaintext file content. Content sent by this plug-in remains encrypted.
+    - The setting is included in exported settings Markdown, Setup URIs, and QR codes. Changing this setting alone does not require Fetch or Rebuild.
+
+### Miscellaneous
+
+- Updated dependencies.
+
+### Acknowledgements
+
+- @Hama1cco, for reporting plaintext content acceptance with E2EE enabled.
+
+## 1.0.48
+
+11th November, 2026
+
+### Fixed
+
+- Ordinary start-up scans can apply retained database deletions to Vault files whose content is confirmed unchanged. (#1338)
+    - Files with local changes or insufficient provenance remain available for review.
+    - Interrupted provenance and scan-record cleanup is retried from existing local state during a later scan.
+
 ## 1.0.47
 
 9th November, 2026
@@ -43,244 +168,3 @@ Earlier releases remain available in the 1.0 release history, the 1.0 preview hi
 - The daemon no longer misses files written into newly created folders. (#1328)
     - This includes bursts of writes and files renamed from temporary names.
     - The CLI requires Node.js 22.22 or later. The Docker image includes its own runtime.
-
-## 1.0.46
-
-7th November, 2026
-
-P2P synchronisation can stop connecting when our devices are on different versions. And this is one of those versions.
-
-If we use P2P synchronisation, let us make sure all our devices are on the same version.
-
-### Fixed
-
-#### Synchronisation and recovery
-
-- Receiving devices no longer reject newly saved files with 'seems to be corrupted! Writing prevented' because rapid edits left the sender's cached file size out of date. New saves record the byte length of the content actually read. (#1324)
-    - Existing incorrect size records need explicit repair. Use **Inspect conflicts and file/database differences** → **Correct recorded file size** when the readable current database revision has no conflicts and matches the Vault exactly. The correction retains the file content and timestamps.
-
-#### P2P synchronisation
-
-- Peer actions and long device names now fit narrow panes. Larger buttons and wrapped labels keep the controls readable and usable.
-
-### Improved
-
-#### P2P synchronisation
-
-- We can inspect the latest relay, peer, and synchronisation observations in **P2P Status**. Expand **Diagnostic summary** below **Stats**; detailed observations start collapsed.
-    - Enable **Diag** to show diagnostic events in the Log Pane without editor-status updates or notifications. Opening the Log Pane also displays its buffered messages.
-    - Unobserved information is labelled explicitly. An open room does not establish relay acceptance; relay rejection details remain unavailable through the diagnostic summary.
-
-- We can see sent (↑) and received (↓) database document revision counts in the P2P panes and editor status, and in the main status bar when P2P is our main remote. Counts include Metadata and Chunks, rather than Vault files.
-    - Directional ⏩ labels show changes-feed comparison progress, including when no revisions need transferring. Each label disappears three seconds after its count last changes; its absence alone does not establish completion. Peers without document statistics retain sequence values labelled `seq`.
-
-- The updated transport incorporates upstream improvements to peer discovery after relay reconnection, missed signalling messages, and stale connections after rejoining or waiting. Connection offers are created on demand.
-    - All communicating devices in our P2P group, including CLI and WebPeer clients, must be updated together before P2P synchronisation resumes. Trystero 0.26.0 cannot exchange data with the previous transport.
-
-### Documentation
-
-- Clarified backend selection and hosting requirements, including Object Storage request costs. Added a guide to P2P diagnostic observations, logs, and transfer progress.
-
-## 1.0.45
-
-5th November, 2026
-
-Some of my recent replies have been sporting the Codex icon. Rest assured: I simply ask Codex to polish my English and discreetly intercept the occasional ill-judged remark before I post.
-
-### New Feature
-
-#### Synchronisation
-
-- We can recognise equivalent composed and decomposed Unicode file names as the same file when synchronising through Object Storage or P2P. (#1309)
-    - Select **Unicode NFC path identity** under **General Settings** → **File identity**. Supported by the CLI and Obsidian; physical file names and Chunk IDs remain unchanged.
-    - To migrate a Legacy database, update every participating client, stop synchronisation and editing, and preserve a complete, backed-up authoritative Vault, unique edits, and required history. Resolve colliding names before Rebuild on the source and Fetch on the remaining devices. With P2P, Rebuild prepares only the source database; keep that device online for Fetch.
-    - New CLI settings and Obsidian manual setup use NFC. Existing settings and older Setup URIs retain Legacy identity; initial CouchDB or Object Storage setup follows the remote's declared identity.
-    - Object Storage remotes with existing Journals but no compatibility declaration also require Rebuild, even in Legacy mode.
-
-### Fixed
-
-#### Object Storage
-
-- Journal receive failures now stop replication instead of silently passing over records which could not be decoded, processed, or saved. (#1318)
-    - After correcting the cause, retry replication with the same local database to receive the failed Journal again.
-    - If a Journal cannot be recovered and missing content or history is acceptable, use **Maintenance** → **Syncing** → **Skip stopped Journal and resume**. The confirmation identifies its exact key and failure stage. Only that Journal is skipped; the next failure still stops receipt.
-    - Journals already passed over by an earlier version require **Reset journal received history** to be replayed. This re-reads Journals still available remotely, except those sent by this device, and cannot recreate missing remote Journals.
-
-- A remote-only Rebuild resends the local database even when the Object Storage remote is already empty and this device retains its earlier transfer progress.
-
-#### Synchronisation
-
-- CouchDB synchronisation and Fetch no longer fail with decryption errors caused by stale encrypted responses in the Internal API cache after a Rebuild or plug-in restart. (#1234)
-    - Reads use a cache query parameter based on the current start-up and Security Seed.
-    - **Use headers only for HTTP cache control (compatibility)** under **Power users** → **CouchDB Connection Tweak** is disabled by default. Enable it only if the server or proxy rejects the additional query parameter; affected native caches may then reuse stale encrypted responses after Rebuild.
-
-#### Conflict resolution
-
-- Disabling or reloading the plug-in no longer causes a secondary error when pending work writes to the log. Late logs remain available in Obsidian's console.
-    - Open conflict dialogues for ordinary files close immediately, and queued checks report cancellation.
-
-#### Settings
-
-- The English description of **Do not split chunks in the background** now correctly states that enabling the setting moves Chunk splitting to the UI thread. (#1313)
-
-#### Translations
-
-- The notice shown when a translation is available now displays the **Display Language** setting label correctly in English, French, Hebrew, Russian, and Simplified Chinese. Hebrew interface messages also display their referenced labels correctly. (#1298)
-
-#### WebApp
-
-- The experimental WebApp rejects unsupported NFC path identity before opening its database or processing Vault files, preserving the selected files and settings.
-    - WebApp remains Legacy-only. Changing the setting does not migrate an NFC database.
-
-### Improved
-
-#### Translations
-
-- More of the interface is available in Japanese, including dialogue buttons, Vault history, SyncGuard, inspection reports, and Fetch restart confirmations. Japanese setup and settings guides have also been refreshed. (#1317)
-
-### CLI
-
-#### New Feature
-
-- We can resume Object Storage receipt after deliberately skipping one unrecoverable Journal with `journal-skip <journal-key>`.
-    - Retry `sync` with `--debug` to inspect the stopped Journal key and failure stage. The command retries replication first and skips only the supplied Journal if it remains stopped.
-    - Use this only when missing content or history is acceptable. The next Journal failure still stops receipt.
-
-#### Fixed
-
-- `fetch` and `rebuild` no longer replay pending file updates from the previous database at start-up. The old pending updates are discarded only after the local database reset succeeds.
-- `fetch` and `daemon` can write received files to the Vault when `handleFilenameCaseSensitive` is enabled. The CLI detects whether the Vault filesystem distinguishes letter case. (#1319)
-- NFC file lookups and directory scans report permission and I/O failures. Unreadable files are no longer treated as absent, and incomplete scans no longer count as successful.
-
-### Miscellaneous
-
-- Updated dependencies.
-
-### Acknowledgements
-
-Thank you for your contributions!
-
-- @cwatanab, for improving Japanese translations and documentation, correcting translated labels, and correcting the Chunk splitting setting description (#1298, #1313, #1317).
-
-## 1.0.44
-
-1st November, 2026
-
-Recently, I have been concentrating on maintenance and improvements to individual features. I began to wonder whether I had been focusing a little too closely on the details and could give more attention to the overall picture. That led me to a somewhat broader round of changes, including reworking parts of the architecture. Along the way, I was able to bring several implementations of the same concepts together, introduce shared abstractions, and tidy up the codebase a little.
-
-Please let me know if any problems arise from these changes.
-
-### Fixed
-
-#### Synchronisation
-
-- Files containing a raw unit separator (`U+001F`) are no longer truncated when received through S3-compatible Object Storage. (#1303)
-    - Update every participating client to prevent further truncation. Updating alone does not repair copies already damaged.
-    - Before recovery, preserve verified intact copies, unique unsynchronised edits, and any required history, then follow the [recovery procedure](docs/recovery.md#recover-files-truncated-during-object-storage-reception).
-    - Rebuild and Fetch leave Hidden File Sync and Customisation Sync disabled. Initialise them deliberately after ordinary file recovery is complete.
-
-- We can continue CouchDB synchronisation after rebuilding an encrypted remote when **Use Internal API** is enabled. (#1234)
-    - Cached responses encrypted with the previous Security Seed no longer interfere with subsequent reads.
-
-#### Conflict resolution
-
-- A queued conflict check no longer gets stuck waiting for a response to an outdated comparison of the same file.
-
-#### Hidden File Sync and Customisation Sync
-
-- Newer local hidden files are no longer omitted when initialising Hidden File Sync with `Merge`.
-- Refreshing the Customisation Sync catalogue no longer brings back outdated items from an earlier scan.
-
-### Improved
-
-#### Hidden File Sync
-
-- We can review the latest hidden-file revisions when changes arrive during a manual JSON comparison.
-    - The earlier comparison closes, and the latest revisions are checked again. If another device has resolved the conflict, the comparison closes without asking for another selection.
-
-### Sunset
-
-#### Recovery
-
-- Recovery from old cleanup locks is now unified around the standard recovery dialogue, including on devices using the legacy IndexedDB adapter.
-    - Use Fetch to reconstruct the local database from the remote, unlock the device when both databases are already aligned, or dismiss the dialogue.
-    - These choices replace the legacy in-place `Cleanup` operation. Garbage Collection V3 remains available.
-    - Before Fetch, preserve unsynchronised work and any required local history, as it replaces the local database.
-
-### CLI
-
-#### Fixed
-
-- We can continue using the reconstructed database after CLI `fetch` or `rebuild`, avoiding the empty-database restart and file deletion reported in #1304.
-    - Subsequent commands retain the selected database even without `--write-settings`. Interrupted reconstruction blocks ordinary synchronisation until recovery.
-    - Older runtime state with no recorded owner requires explicit reconstruction from a verified source. Back up unique edits before choosing Fetch or Rebuild.
-
-- The CLI mirror starts correctly on Windows when the Vault path is omitted and the database directory is also used as the Vault.
-
-### Miscellaneous
-
-- Installation and update downloads are smaller.
-- Database initialisation handles encrypted change notifications more reliably. (Commonlib #191)
-
-### Acknowledgements
-
-Thank you for your contributions!
-
-- @AdrianNicu, for improving decryption handling during database initialisation (Commonlib #191).
-
-## 1.0.43
-
-30th October, 2026
-
-### Synchronisation
-
-#### New Feature
-
-- We can avoid accidentally editing out-of-date notes while a large CouchDB catch-up is in progress. (#1241, #1275)
-    - Turn on **Enable SyncGuard** under **General Settings** → **Appearance** to cover the workspace until incoming changes have been received and applied to the Vault.
-    - Disabled by default. During CouchDB LiveSync mode start-up or resume, protection begins after a configurable number of distinct incoming notes is detected (default: 20).
-    - **Continue without waiting** releases the workspace, including after a failed or interrupted transfer. Synchronisation can continue, and some notes may still be out of date.
-    - The settings apply only to this device.
-    - Small catch-up transfers and ordinary live changes remain uninterrupted. Some changes can arrive before the guard activates; it does not prevent other plug-ins or external tools from editing files.
-
-#### Improved
-
-- We can tell that CouchDB synchronisation is progressing while it compares existing revisions, even before any files are uploaded. (#1293, #1294)
-    - Separate `⏩↑` and `⏩↓` counts show the change-feed entries compared for push and pull. These are comparison counts; the upload and download totals remain separate.
-    - Existing CSS snippets which target `livesync-stat-ff` to hide comparison progress need to target both `livesync-stat-ff-push` and `livesync-stat-ff-pull`. The status display guide includes updated examples.
-
-### Setup and recovery
-
-#### Fixed
-
-- We can choose how a new Join or scheduled Fetch handles our existing files, without silently reusing choices from an earlier Fetch. (#1244, #1296)
-    - Each new operation asks again, including after a previous Fetch changed the local database suffix. Fast Setup retains interrupted choices in an editable code block in the fetch flag.
-    - On restart, we confirm the current remote and saved choices, choose again, or cancel; a remaining flag never reapplies choices silently.
-    - If the saved selection cannot be read, we can choose new options for that attempt without repairing or rewriting the flag. Completing or cancelling the operation removes the whole flag.
-    - After updating during an interrupted Fetch, confirm the choices once more. Older separately stored choices are ignored; downloaded data and the existing checkpoint are not removed by this change.
-
-### Dialogues
-
-#### Fixed
-
-- Confirmation and setup actions are easier to follow, and keyboard focus remains visible. (#1297)
-    - Buttons align with the content above them, with room for confirmation buttons' focus outlines.
-- Mobile dialogues retain Obsidian's standard spacing and leave more usable space above the software keyboard. (#1297)
-
-### Translations
-
-- More settings, setup, recovery, and configuration messages are available in Simplified Chinese. (#1258)
-    - Expanded the translation catalogue to include previously untranslated messages and shared-library labels.
-
-### Miscellaneous
-
-- Docker setup now handles shell-sensitive characters in health-check credentials correctly, avoiding false authentication failures which could prevent CouchDB initialisation. (#1295)
-
-### Acknowledgements
-
-Thank you for your contributions!
-
-- @Akilaydin, for adding the optional SyncGuard workspace protection (#1275).
-- @ARCJ137442, for adding separate push and pull comparison progress displays (#1294).
-- @Jovlang, for correcting Docker health-check credential quoting and authenticated readiness checks (#1295).
-- @kannazuki-c, for expanding the Simplified Chinese translations (#1258).

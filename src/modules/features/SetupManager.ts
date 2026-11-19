@@ -7,7 +7,8 @@ import {
     REMOTE_COUCHDB,
     REMOTE_MINIO,
 } from "@vrtmrz/livesync-commonlib/compat/common/types";
-import { createNewVaultSettings } from "@/common/newVaultSettings";
+import { normaliseAcceptUnencryptedContent } from "@vrtmrz/livesync-commonlib/settings";
+import { createNewVaultSettings } from "@/common/core/settings/newVaultSettings";
 import { upsertRemoteConfigurationInPlace } from "@vrtmrz/livesync-commonlib/remote-configurations";
 import { isObjectDifferent } from "@vrtmrz/livesync-commonlib/compat/common/utils";
 import Intro from "./SetupWizard/dialogs/Intro.svelte";
@@ -26,6 +27,7 @@ import SetupRemoteP2P from "./SetupWizard/dialogs/SetupRemoteP2P.svelte";
 import SetupRemoteE2EE from "./SetupWizard/dialogs/SetupRemoteE2EE.svelte";
 import { decodeSettingsFromQRCodeData } from "@vrtmrz/livesync-commonlib/compat/API/processSetting";
 import { AbstractModule } from "@/modules/AbstractModule.ts";
+import { $msg } from "@/common/translation";
 import type {
     OutroAskUserModeResultType,
     OutroExistingUserResultType,
@@ -42,15 +44,16 @@ import type {
     UseSetupURIResultType,
     ApplySettingsInitialisationResultType,
     ApplySettingsInitialisationInitialData,
+    OutroApplyInitialData,
 } from "./SetupWizard/dialogs/setupDialogTypes.ts";
 import {
     applySettingsAndFetchOnActivation,
     applySettingsWithScheduledInitialisation,
     type SetupInitialisationMode,
 } from "@/serviceFeatures/setupObsidian/setupActivationLifecycle.ts";
-import { isP2PMainRemote } from "@/common/remoteConfiguration.ts";
+import { isP2PMainRemote } from "@/common/core/settings/remoteConfiguration.ts";
 import { REMOTE_RESOURCE_KINDS } from "@vrtmrz/livesync-commonlib/replication";
-import { resolveInitialPathIdentity } from "@/common/initialPathIdentity";
+import { resolveInitialPathIdentity } from "@/common/core/replication/initialPathIdentity";
 import type { P2PConnectionProbeAdmission } from "@vrtmrz/livesync-commonlib/p2p";
 
 function copySettingsForRemoteProfileUpdate(settings: ObsidianLiveSyncSettings): ObsidianLiveSyncSettings {
@@ -60,7 +63,7 @@ function copySettingsForRemoteProfileUpdate(settings: ObsidianLiveSyncSettings):
     };
 }
 
-function normaliseImportedIdentitySettings(settings: ObsidianLiveSyncSettings): ObsidianLiveSyncSettings {
+function normaliseCompleteImportedSettings(settings: ObsidianLiveSyncSettings): ObsidianLiveSyncSettings {
     // Setup URIs are complete imports even when their encoder omitted default-valued fields.
     // Fill each missing half so a receiving device cannot supply the unrelated saved key.
     return {
@@ -74,6 +77,8 @@ function normaliseImportedIdentitySettings(settings: ObsidianLiveSyncSettings): 
         idDerivationKey: Object.prototype.hasOwnProperty.call(settings, "idDerivationKey")
             ? settings.idDerivationKey
             : "",
+        // Do not inherit a destination's preference when a complete import omits this newer field.
+        acceptUnencryptedContent: normaliseAcceptUnencryptedContent(settings.acceptUnencryptedContent),
     };
 }
 
@@ -238,7 +243,7 @@ export class SetupManager extends AbstractModule {
             return false;
         }
         this._log("Setup URI dialog closed.", LOG_LEVEL_VERBOSE);
-        return await this.onConfirmApplySettingsFromWizard(normaliseImportedIdentitySettings(newSetting), userMode);
+        return await this.onConfirmApplySettingsFromWizard(normaliseCompleteImportedSettings(newSetting), userMode);
     }
 
     /**
@@ -383,16 +388,25 @@ export class SetupManager extends AbstractModule {
             this._log("E2EE configuration cancelled.", LOG_LEVEL_NOTICE);
             return false;
         }
-        const onlyInternalMetadataPreferenceChanged =
-            currentSetting.encryptInternalMetadata !== e2eeConf.encryptInternalMetadata &&
+        const internalMetadataPreferenceChanged =
+            currentSetting.encryptInternalMetadata !== e2eeConf.encryptInternalMetadata;
+        const plaintextReceiptPreferenceChanged =
+            normaliseAcceptUnencryptedContent(currentSetting.acceptUnencryptedContent) !==
+            normaliseAcceptUnencryptedContent(e2eeConf.acceptUnencryptedContent);
+        const onlyE2EEPreferenceChanges =
+            (internalMetadataPreferenceChanged || plaintextReceiptPreferenceChanged) &&
             currentSetting.encrypt === e2eeConf.encrypt &&
             currentSetting.passphrase === e2eeConf.passphrase &&
             currentSetting.E2EEAlgorithm === e2eeConf.E2EEAlgorithm &&
             currentSetting.usePathObfuscation === e2eeConf.usePathObfuscation &&
             currentSetting.idDerivationVersion === e2eeConf.idDerivationVersion &&
             currentSetting.idDerivationKey === e2eeConf.idDerivationKey;
-        if (userMode === UserMode.Update && onlyInternalMetadataPreferenceChanged) {
-            if (e2eeConf.encryptInternalMetadata && currentSetting.remoteType === REMOTE_COUCHDB) {
+        if (userMode === UserMode.Update && onlyE2EEPreferenceChanges) {
+            if (
+                internalMetadataPreferenceChanged &&
+                e2eeConf.encryptInternalMetadata &&
+                currentSetting.remoteType === REMOTE_COUCHDB
+            ) {
                 const proceed = "Enable without rebuilding — update every other device first";
                 const choice = await this.core.confirm.askSelectStringDialogue(
                     "A manual remote Rebuild is strongly recommended to protect existing file properties. " +
@@ -404,10 +418,16 @@ export class SetupManager extends AbstractModule {
                 );
                 if (choice !== proceed) return false;
             }
-            await this.services.setting.applyPartial(
-                { encryptInternalMetadata: e2eeConf.encryptInternalMetadata },
-                true
-            );
+            const partial: Partial<ObsidianLiveSyncSettings> = {};
+            if (internalMetadataPreferenceChanged) {
+                partial.encryptInternalMetadata = e2eeConf.encryptInternalMetadata;
+            }
+            if (plaintextReceiptPreferenceChanged) {
+                partial.acceptUnencryptedContent = normaliseAcceptUnencryptedContent(
+                    e2eeConf.acceptUnencryptedContent
+                );
+            }
+            await this.services.setting.applyPartial(partial, true);
             return true;
         }
         const newSetting = {
@@ -476,10 +496,13 @@ export class SetupManager extends AbstractModule {
         activate: boolean = true,
         extra: () => void = () => {}
     ): Promise<boolean> {
-        newConf = await this.services.setting.adjustSettings({
-            ...this.settings,
-            ...newConf,
-        });
+        newConf = await this.services.setting.adjustSettings(
+            copySettingsForRemoteProfileUpdate({ ...this.settings, ...newConf })
+        );
+        const enableUnencryptedContent =
+            newConf.encrypt === true &&
+            normaliseAcceptUnencryptedContent(newConf.acceptUnencryptedContent) &&
+            !(this.settings.encrypt === true && normaliseAcceptUnencryptedContent(this.settings.acceptUnencryptedContent));
         let userMode = _userMode;
         if (userMode === UserMode.Unknown) {
             if (isObjectDifferent(this.settings, newConf, true) === false) {
@@ -505,8 +528,10 @@ export class SetupManager extends AbstractModule {
                 if (applied) this._log("Settings from wizard applied.", LOG_LEVEL_NOTICE);
                 return applied;
             } else {
-                const userModeResult =
-                    await this.dialogManager.openWithExplicitCancel<OutroAskUserModeResultType>(OutroAskUserMode);
+                const userModeResult = await this.dialogManager.openWithExplicitCancel<
+                    OutroAskUserModeResultType,
+                    OutroApplyInitialData
+                >(OutroAskUserMode, { isP2P: isP2PMainRemote(newConf), enableUnencryptedContent });
                 if (userModeResult === "new-user") {
                     userMode = UserMode.NewUser;
                 } else if (userModeResult === "existing-user") {
@@ -522,11 +547,14 @@ export class SetupManager extends AbstractModule {
                 }
             }
         }
-        const component = userMode === UserMode.NewUser ? OutroNewUser : OutroExistingUser;
-        const confirm = await this.dialogManager.openWithExplicitCancel<
-            OutroNewUserResultType | OutroExistingUserResultType,
-            { isP2P: boolean }
-        >(component, { isP2P: isP2PMainRemote(newConf) });
+        const initialData = { isP2P: isP2PMainRemote(newConf), enableUnencryptedContent };
+        const confirm =
+            userMode === UserMode.NewUser
+                ? await this.dialogManager.openWithExplicitCancel<OutroNewUserResultType, OutroApplyInitialData>(
+                      OutroNewUser,
+                      initialData
+                  )
+                : await this.confirmAdditionalDeviceRestart(initialData);
         if (confirm === "cancelled") {
             this._log("User cancelled applying settings from wizard..", LOG_LEVEL_NOTICE);
             return false;
@@ -548,6 +576,28 @@ export class SetupManager extends AbstractModule {
         }
         // Settings applied, but may require rebuild to take effect.
         return false;
+    }
+
+    private async confirmAdditionalDeviceRestart(
+        initialData: OutroApplyInitialData
+    ): Promise<OutroExistingUserResultType> {
+        const review = await this.dialogManager.openWithExplicitCancel<
+            OutroExistingUserResultType,
+            OutroApplyInitialData
+        >(OutroExistingUser, initialData);
+        if (review !== "apply") {
+            return "cancelled";
+        }
+
+        const title = $msg("Ui.SetupWizard.OutroExistingUser.RestartConfirmationTitle");
+        const message = $msg(
+            initialData.isP2P
+                ? "Ui.SetupWizard.OutroExistingUser.P2PFetchSyncGuidance"
+                : "Ui.SetupWizard.OutroExistingUser.FetchSyncGuidance"
+        );
+        const restart = $msg(initialData.isP2P ? "Restart and Select Source Device" : "Restart and Fetch Data");
+        const action = await this.core.confirm.confirmWithMessage(title, message, [restart, $msg("Cancel")], restart);
+        return action === restart ? "apply" : "cancelled";
     }
 
     /**
@@ -572,7 +622,7 @@ export class SetupManager extends AbstractModule {
     async decodeQR(qr: string) {
         let newSettings: ObsidianLiveSyncSettings;
         try {
-            newSettings = normaliseImportedIdentitySettings(decodeSettingsFromQRCodeData(qr));
+            newSettings = normaliseCompleteImportedSettings(decodeSettingsFromQRCodeData(qr));
         } catch {
             this._log("The QR configuration could not be decoded or contains unsupported settings.", LOG_LEVEL_NOTICE);
             return false;

@@ -7,7 +7,7 @@ import {
     type ObsidianLiveSyncSettings,
     LOG_LEVEL_VERBOSE,
 } from "@vrtmrz/livesync-commonlib/compat/common/types";
-import { OPEN_JOINED_DEVICES } from "@/serviceFeatures/joinedDevicesCommand";
+import { OPEN_JOINED_DEVICES } from "@/serviceFeatures/joinedDevices/command";
 import { Menu, type ButtonComponent } from "@/deps.ts";
 import { $msg } from "@/common/translation";
 import { LiveSyncSetting as Setting } from "./LiveSyncSetting.ts";
@@ -145,9 +145,13 @@ export function paneRemoteConfig(
                             if (applied) {
                                 this.editingSettings.encryptInternalMetadata =
                                     this.core.settings.encryptInternalMetadata;
+                                this.editingSettings.acceptUnencryptedContent =
+                                    this.core.settings.acceptUnencryptedContent;
                                 if (this.initialSettings) {
                                     this.initialSettings.encryptInternalMetadata =
                                         this.core.settings.encryptInternalMetadata;
+                                    this.initialSettings.acceptUnencryptedContent =
+                                        this.core.settings.acceptUnencryptedContent;
                                 }
                                 this.requestUpdate();
                             }
